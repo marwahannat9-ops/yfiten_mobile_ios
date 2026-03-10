@@ -1,0 +1,9 @@
+node_modules/
+www/js/app.js
+.DS_Store
+*.log
+android/app/build/
+android/.gradle/
+android/build/
+ios/
+screen*.png

@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Yfiten</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ==================== LOGIN ==================== -->
+    <div id="screen-login" class="screen login-screen active">
+      <div class="login-container">
+        <div class="login-logo">
+          <img src="img/logo.png" alt="Yfiten" />
+        </div>
+        <p class="login-subtitle">Connectez-vous a votre espace</p>
+
+        <form id="login-form" autocomplete="off">
+          <div id="login-error" class="error-msg" style="display:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span></span>
+          </div>
+
+          <div class="form-group">
+            <label for="login-email">Adresse e-mail</label>
+            <div class="input-wrapper">
+              <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              <input type="email" id="login-email" placeholder="nom@entreprise.com" required autocomplete="email" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="login-password">Mot de passe</label>
+            <div class="input-wrapper">
+              <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input type="password" id="login-password" placeholder="Votre mot de passe" required autocomplete="current-password" />
+              <button type="button" id="toggle-password" class="password-toggle" aria-label="Afficher le mot de passe">
+                <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg id="eye-off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" id="login-btn" class="btn-login">
+            <span class="btn-text">Se connecter</span>
+            <span class="btn-loader" style="display:none"></span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         DIRIGEANT / ENTREPRENEUR — Ticket Scanner
+         ==================================================================== -->
+    <div id="screen-dirigeant" class="screen">
+      <header class="app-header">
+        <div class="header-left">
+          <div class="org-avatar">Y</div>
+          <div class="header-info">
+            <span class="org-name">Yfiten</span>
+            <span class="header-subtitle">Gestion des tickets</span>
+          </div>
+        </div>
+        <button type="button" class="header-action logout-action" title="Deconnexion">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </header>
+
+      <!-- Organization selector (multi-org) -->
+      <div id="dir-org-selector" class="org-selector" style="display:none">
+        <label>Organisation active</label>
+        <select id="dir-org-select"></select>
+      </div>
+
+      <div class="main-content">
+        <!-- Capture card -->
+        <div class="section-card">
+          <div class="section-card-header">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Scanner un ticket</span>
+          </div>
+
+          <div id="capture-placeholder" class="capture-placeholder">
+            <div class="capture-icon-wrap">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <p class="capture-title">Capturez votre recu</p>
+            <p class="capture-hint">Prenez une photo ou selectionnez depuis la galerie</p>
+          </div>
+
+          <div id="capture-preview" class="capture-preview" style="display:none">
+            <img id="preview-img" src="" alt="Apercu" />
+            <button type="button" id="retake-btn" class="btn-retake">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              Reprendre
+            </button>
+          </div>
+
+          <div class="capture-actions">
+            <button type="button" id="capture-btn" class="btn-action btn-action-primary">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>Photo</span>
+            </button>
+            <button type="button" id="gallery-btn" class="btn-action btn-action-secondary">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>Galerie</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Analyzing overlay -->
+        <div id="analyzing-overlay" class="analyzing-overlay" style="display:none">
+          <div class="analyzing-content">
+            <div class="analyzing-spinner"></div>
+            <p class="analyzing-title">Analyse en cours...</p>
+            <p class="analyzing-hint">Extraction des donnees du ticket</p>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div id="result-section" class="result-section" style="display:none">
+          <div class="result-card">
+            <div class="result-header">
+              <div class="result-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div>
+                <h3>Ticket enregistre</h3>
+                <p>Les donnees ont ete extraites et sauvegardees</p>
+              </div>
+            </div>
+            <div class="result-divider"></div>
+            <div id="result-details" class="result-details"></div>
+            <button type="button" id="new-capture-btn" class="btn-new-ticket">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nouveau ticket
+            </button>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div class="history-section">
+          <div class="history-header">
+            <h3>Derniers tickets</h3>
+            <button type="button" id="refresh-btn" class="btn-refresh" title="Rafraichir">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
+          </div>
+          <div id="history-list" class="history-list">
+            <div class="history-empty">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+              <p>Aucun ticket recent</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         SALARIE — Full Employee App
+         ==================================================================== -->
+    <div id="screen-salarie" class="screen">
+
+      <!-- ===== TAB: DASHBOARD ===== -->
+      <div id="tab-dashboard" class="tab-content active">
+        <header class="app-header">
+          <div class="header-left">
+            <div class="org-avatar">Y</div>
+            <div class="header-info">
+              <span class="org-name">Yfiten</span>
+              <span class="header-subtitle">Espace salarie</span>
+            </div>
+          </div>
+          <button type="button" class="header-action logout-action" title="Deconnexion">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </header>
+
+        <div class="main-content" id="dashboard-content">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon stat-icon-blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value" id="stat-payslips">-</span>
+                <span class="stat-label">Bulletins</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-icon-amber">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value" id="stat-leaves">-</span>
+                <span class="stat-label">Conges en attente</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-icon-green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value" id="stat-expenses">-</span>
+                <span class="stat-label">Depenses en attente</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-card-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span>Solde de conges</span>
+            </div>
+            <div class="balance-grid" id="leave-balance">
+              <div class="balance-item">
+                <span class="balance-value" id="bal-available">-</span>
+                <span class="balance-label">Disponibles</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-value" id="bal-used">-</span>
+                <span class="balance-label">Pris</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-value" id="bal-remaining">-</span>
+                <span class="balance-label">Restants</span>
+              </div>
+              <div class="balance-item">
+                <span class="balance-value" id="bal-carryover">-</span>
+                <span class="balance-label">Report</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-actions">
+            <button type="button" class="quick-action-btn" id="qa-leave">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+              <span>Demander un conge</span>
+            </button>
+            <button type="button" class="quick-action-btn" id="qa-expense">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Soumettre une depense</span>
+            </button>
+            <button type="button" class="quick-action-btn" id="qa-payslips">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span>Mes bulletins</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TAB: PAYSLIPS ===== -->
+      <div id="tab-payslips" class="tab-content">
+        <header class="app-header">
+          <div class="header-left">
+            <div class="org-avatar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="header-info">
+              <span class="org-name">Fiches de paie</span>
+              <span class="header-subtitle">Mes bulletins de salaire</span>
+            </div>
+          </div>
+          <button type="button" class="header-action btn-refresh-payslips" title="Rafraichir">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+        </header>
+        <div class="main-content">
+          <div id="payslips-list" class="list-container">
+            <div class="list-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <p>Aucun bulletin de paie</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TAB: LEAVES ===== -->
+      <div id="tab-leaves" class="tab-content">
+        <header class="app-header">
+          <div class="header-left">
+            <div class="org-avatar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="header-info">
+              <span class="org-name">Absences et conges</span>
+              <span class="header-subtitle">Mes demandes</span>
+            </div>
+          </div>
+          <button type="button" id="btn-new-leave" class="header-action-primary" title="Nouvelle demande">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </header>
+        <div class="main-content">
+          <div id="leaves-list" class="list-container">
+            <div class="list-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <p>Aucune demande de conge</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TAB: LEAVE FORM ===== -->
+      <div id="tab-leave-form" class="tab-content">
+        <header class="app-header">
+          <div class="header-left">
+            <button type="button" class="header-back" id="back-from-leave-form">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="header-info">
+              <span class="org-name">Nouvelle demande</span>
+              <span class="header-subtitle">Absences et conges</span>
+            </div>
+          </div>
+        </header>
+        <div class="main-content">
+          <form id="leave-form" class="form-container">
+            <div class="form-group">
+              <label>Type de conge</label>
+              <select id="leave-type" required>
+                <option value="vacation">Conge annuel</option>
+                <option value="sick">Maladie</option>
+                <option value="birth">Naissance</option>
+                <option value="marriage">Mariage</option>
+                <option value="other">Autre</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Date de debut</label>
+                <input type="date" id="leave-start" required />
+              </div>
+              <div class="form-group">
+                <label>Date de fin</label>
+                <input type="date" id="leave-end" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Heure debut</label>
+                <select id="leave-start-time">
+                  <option value="09:00">09:00 (Matin)</option>
+                  <option value="13:00">13:00 (Apres-midi)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Heure fin</label>
+                <select id="leave-end-time">
+                  <option value="18:00">18:00 (Soir)</option>
+                  <option value="12:00">12:00 (Midi)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Motif (optionnel)</label>
+              <textarea id="leave-reason" rows="3" placeholder="Decrivez le motif de votre demande..."></textarea>
+            </div>
+            <button type="submit" class="btn-submit" id="leave-submit-btn">
+              <span class="btn-text">Envoyer la demande</span>
+              <span class="btn-loader" style="display:none"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ===== TAB: EXPENSES ===== -->
+      <div id="tab-expenses" class="tab-content">
+        <header class="app-header">
+          <div class="header-left">
+            <div class="org-avatar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="header-info">
+              <span class="org-name">Notes de frais</span>
+              <span class="header-subtitle">Mes depenses</span>
+            </div>
+          </div>
+          <button type="button" id="btn-new-expense" class="header-action-primary" title="Nouvelle depense">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </header>
+        <div class="main-content">
+          <div id="expenses-list" class="list-container">
+            <div class="list-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <p>Aucune note de frais</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TAB: EXPENSE FORM ===== -->
+      <div id="tab-expense-form" class="tab-content">
+        <header class="app-header">
+          <div class="header-left">
+            <button type="button" class="header-back" id="back-from-expense-form">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="header-info">
+              <span class="org-name">Nouvelle depense</span>
+              <span class="header-subtitle">Notes de frais</span>
+            </div>
+          </div>
+        </header>
+        <div class="main-content">
+          <form id="expense-form" class="form-container">
+            <div class="form-group">
+              <label>Titre</label>
+              <input type="text" id="expense-title" placeholder="Ex: Repas client, Transport..." required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Montant</label>
+                <input type="number" id="expense-amount" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="form-group">
+                <label>Devise</label>
+                <select id="expense-currency">
+                  <option value="MAD">MAD</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="expense-date" />
+            </div>
+            <div class="form-group">
+              <label>Description (optionnel)</label>
+              <textarea id="expense-description" rows="3" placeholder="Details de la depense..."></textarea>
+            </div>
+            <div class="form-group">
+              <label>Justificatif</label>
+              <div id="expense-capture-placeholder" class="capture-zone">
+                <div class="capture-zone-actions">
+                  <button type="button" id="expense-photo-btn" class="capture-zone-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span>Photo</span>
+                  </button>
+                  <button type="button" id="expense-gallery-btn" class="capture-zone-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <span>Galerie</span>
+                  </button>
+                </div>
+              </div>
+              <div id="expense-preview" class="capture-preview-small" style="display:none">
+                <img id="expense-preview-img" src="" alt="Justificatif" />
+                <button type="button" id="expense-retake-btn" class="btn-retake-small">Changer</button>
+              </div>
+            </div>
+            <button type="submit" class="btn-submit" id="expense-submit-btn">
+              <span class="btn-text">Soumettre la depense</span>
+              <span class="btn-loader" style="display:none"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ===== TAB: DIRECTORY ===== -->
+      <div id="tab-directory" class="tab-content">
+        <header class="app-header">
+          <div class="header-left">
+            <button type="button" class="header-back" id="back-from-directory">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="header-info">
+              <span class="org-name">Annuaire</span>
+              <span class="header-subtitle">Mes collegues</span>
+            </div>
+          </div>
+        </header>
+        <div class="main-content">
+          <div id="directory-list" class="list-container">
+            <div class="list-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <p>Aucun collegue trouve</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TAB: PROFILE ===== -->
+      <div id="tab-profile" class="tab-content">
+        <header class="app-header">
+          <div class="header-left">
+            <div class="org-avatar" id="profile-avatar">U</div>
+            <div class="header-info">
+              <span class="org-name" id="profile-name">Mon profil</span>
+              <span class="header-subtitle" id="profile-job">Salarie</span>
+            </div>
+          </div>
+          <button type="button" class="header-action logout-action" title="Deconnexion">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </header>
+        <div class="main-content">
+          <div class="profile-section" id="profile-content">
+            <div class="profile-card">
+              <div class="profile-header-card">
+                <div class="profile-avatar-large" id="profile-avatar-large">U</div>
+                <h3 id="profile-fullname">-</h3>
+                <p id="profile-email">-</p>
+              </div>
+            </div>
+            <div class="section-card">
+              <div class="section-card-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Informations personnelles</span>
+              </div>
+              <div class="profile-details" id="profile-personal"></div>
+            </div>
+            <div class="section-card">
+              <div class="section-card-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                <span>Informations professionnelles</span>
+              </div>
+              <div class="profile-details" id="profile-professional"></div>
+            </div>
+            <div class="profile-menu">
+              <button type="button" class="profile-menu-item" id="menu-directory">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Annuaire</span>
+                <svg class="menu-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button type="button" class="profile-menu-item menu-logout logout-action">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span>Se deconnecter</span>
+                <svg class="menu-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== BOTTOM NAVIGATION ===== -->
+      <nav class="bottom-nav" id="bottom-nav">
+        <button type="button" class="nav-item active" data-tab="dashboard">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <span>Accueil</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="payslips">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Bulletins</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="leaves">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Conges</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="expenses">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Depenses</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="profile">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Profil</span>
+        </button>
+      </nav>
+    </div>
+
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
