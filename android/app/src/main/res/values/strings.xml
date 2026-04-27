@@ -4,4 +4,5 @@
     <string name="title_activity_main">Yfiten</string>
     <string name="package_name">com.yfiten.phone</string>
     <string name="custom_url_scheme">com.yfiten.phone</string>
+    <string name="server_client_id">797674866519-jr95lc66v7s0s13a3pt5vvdiamq631uu.apps.googleusercontent.com</string>
 </resources>

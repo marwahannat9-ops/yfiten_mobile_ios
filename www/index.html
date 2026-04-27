@@ -14,12 +14,50 @@
 <body>
   <div id="app">
 
+    <!-- ==================== WELCOME ==================== -->
+    <div id="screen-welcome" class="screen welcome-screen active">
+      <div class="welcome-container">
+        <div class="welcome-top">
+          <div class="welcome-gradient"></div>
+          <div class="welcome-logo">
+            <img src="img/logo.png" alt="Yfiten" />
+          </div>
+          <h1 class="welcome-title">La plateforme qui simplifie la vie des <strong>dirigeants</strong> et des <strong>comptables</strong></h1>
+          <p class="welcome-desc">Gerez votre comptabilite, vos factures, vos recus et vos salaries en un seul endroit.</p>
+        </div>
+        <div class="welcome-features">
+          <div class="welcome-feature">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            <span>Factures et devis</span>
+          </div>
+          <div class="welcome-feature">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            <span>Scanner de recus OCR</span>
+          </div>
+          <div class="welcome-feature">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            <span>Gestion bancaire</span>
+          </div>
+        </div>
+        <div class="welcome-actions">
+          <button id="btn-go-login" class="btn-primary">Se connecter</button>
+          <button id="btn-go-register" class="btn-outline">Creer un compte</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ==================== LOGIN ==================== -->
-    <div id="screen-login" class="screen login-screen active">
+    <div id="screen-login" class="screen login-screen">
+      <div class="auth-header">
+        <button id="btn-back-welcome" class="back-btn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        </button>
+      </div>
       <div class="login-container">
         <div class="login-logo">
           <img src="img/logo.png" alt="Yfiten" />
         </div>
+        <h2 class="auth-title">Bienvenue !</h2>
         <p class="login-subtitle">Connectez-vous a votre espace</p>
 
         <form id="login-form" autocomplete="off">
@@ -28,542 +66,1427 @@
             <span></span>
           </div>
 
-          <div class="form-group">
-            <label for="login-email">Adresse e-mail</label>
-            <div class="input-wrapper">
-              <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-              <input type="email" id="login-email" placeholder="nom@entreprise.com" required autocomplete="email" />
-            </div>
+          <div class="input-group">
+            <span class="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>
+            </span>
+            <input type="email" id="login-email" placeholder="nom@entreprise.com" required autocomplete="email" />
           </div>
 
-          <div class="form-group">
-            <label for="login-password">Mot de passe</label>
-            <div class="input-wrapper">
-              <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input type="password" id="login-password" placeholder="Votre mot de passe" required autocomplete="current-password" />
-              <button type="button" id="toggle-password" class="password-toggle" aria-label="Afficher le mot de passe">
-                <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                <svg id="eye-off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-              </button>
-            </div>
+          <div class="input-group">
+            <span class="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <input type="password" id="login-password" placeholder="Mot de passe" required autocomplete="current-password" />
+            <button type="button" id="toggle-password" class="input-action" aria-label="Afficher le mot de passe">
+              <svg class="icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M1 1l22 22"/></svg>
+            </button>
           </div>
 
-          <button type="submit" id="login-btn" class="btn-login">
+          <button type="submit" id="login-btn" class="btn-primary">
             <span class="btn-text">Se connecter</span>
-            <span class="btn-loader" style="display:none"></span>
+            <span class="btn-loader" style="display:none">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
+            </span>
+          </button>
+        </form>
+
+        <div class="auth-divider"><span>ou</span></div>
+
+        <button id="btn-google-login" class="btn-google">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          <span>Continuer avec Google</span>
+        </button>
+
+        <p class="auth-switch">Pas de compte ? <a id="link-to-register" href="#">Demander l'acces</a></p>
+        <p class="auth-switch" style="margin-top:8px;font-size:12px"><a href="https://test.yfiten.com/legal/privacy" target="_blank" style="color:var(--text-muted)">Politique de confidentialite</a></p>
+      </div>
+    </div>
+
+    <!-- ==================== GOOGLE ONBOARDING ==================== -->
+    <div id="screen-google-onboarding" class="screen register-screen">
+      <div class="auth-header">
+        <button id="btn-back-google-onboard" class="back-btn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        </button>
+      </div>
+      <div class="login-container">
+        <div class="login-logo">
+          <img src="img/logo.png" alt="Yfiten" />
+        </div>
+        <h2 class="auth-title">Completez votre inscription</h2>
+        <p class="login-subtitle">Connecte avec <strong id="google-onboard-email"></strong></p>
+
+        <form id="google-onboard-form" autocomplete="off">
+          <div id="google-onboard-error" class="error-msg" style="display:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span></span>
+          </div>
+
+          <div class="profile-cards" style="margin-bottom:16px">
+            <button type="button" class="profile-card selected" data-profile="entrepreneur">
+              <div class="profile-card-icon violet">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+              </div>
+              <div class="profile-card-text">
+                <strong>Entrepreneur</strong>
+                <span>Dirigeant, freelance</span>
+              </div>
+            </button>
+            <button type="button" class="profile-card" data-profile="accountant">
+              <div class="profile-card-icon emerald">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+              </div>
+              <div class="profile-card-text">
+                <strong>Expert-comptable</strong>
+                <span>Cabinet comptable</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="input-group">
+            <span class="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <input type="text" id="google-onboard-firstname" placeholder="Prenom" required />
+          </div>
+
+          <div class="input-group">
+            <span class="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <input type="text" id="google-onboard-lastname" placeholder="Nom" required />
+          </div>
+
+          <button type="submit" id="google-onboard-btn" class="btn-primary">
+            <span class="btn-text">Creer mon compte</span>
+            <span class="btn-loader" style="display:none">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
+            </span>
           </button>
         </form>
       </div>
     </div>
 
-    <!-- ====================================================================
-         DIRIGEANT / ENTREPRENEUR — Ticket Scanner
-         ==================================================================== -->
-    <div id="screen-dirigeant" class="screen">
-      <header class="app-header">
-        <div class="header-left">
-          <div class="org-avatar">Y</div>
-          <div class="header-info">
-            <span class="org-name">Yfiten</span>
-            <span class="header-subtitle">Gestion des tickets</span>
-          </div>
-        </div>
-        <button type="button" class="header-action logout-action" title="Deconnexion">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    <!-- ==================== REGISTER ==================== -->
+    <div id="screen-register" class="screen register-screen">
+      <div class="auth-header">
+        <button id="btn-back-welcome-reg" class="back-btn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
         </button>
-      </header>
-
-      <!-- Organization selector (multi-org) -->
-      <div id="dir-org-selector" class="org-selector" style="display:none">
-        <label>Organisation active</label>
-        <select id="dir-org-select"></select>
       </div>
-
-      <div class="main-content">
-        <!-- Capture card -->
-        <div class="section-card">
-          <div class="section-card-header">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <span>Scanner un ticket</span>
-          </div>
-
-          <div id="capture-placeholder" class="capture-placeholder">
-            <div class="capture-icon-wrap">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </div>
-            <p class="capture-title">Capturez votre recu</p>
-            <p class="capture-hint">Prenez une photo ou selectionnez depuis la galerie</p>
-          </div>
-
-          <div id="capture-preview" class="capture-preview" style="display:none">
-            <img id="preview-img" src="" alt="Apercu" />
-            <button type="button" id="retake-btn" class="btn-retake">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-              Reprendre
-            </button>
-          </div>
-
-          <div class="capture-actions">
-            <button type="button" id="capture-btn" class="btn-action btn-action-primary">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span>Photo</span>
-            </button>
-            <button type="button" id="gallery-btn" class="btn-action btn-action-secondary">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              <span>Galerie</span>
-            </button>
-          </div>
+      <div class="login-container">
+        <div class="login-logo">
+          <img src="img/logo.png" alt="Yfiten" />
         </div>
+        <h2 class="auth-title">Qui etes-vous ?</h2>
+        <p class="login-subtitle">Selectionnez votre profil pour commencer</p>
 
-        <!-- Analyzing overlay -->
-        <div id="analyzing-overlay" class="analyzing-overlay" style="display:none">
-          <div class="analyzing-content">
-            <div class="analyzing-spinner"></div>
-            <p class="analyzing-title">Analyse en cours...</p>
-            <p class="analyzing-hint">Extraction des donnees du ticket</p>
-          </div>
-        </div>
-
-        <!-- Result -->
-        <div id="result-section" class="result-section" style="display:none">
-          <div class="result-card">
-            <div class="result-header">
-              <div class="result-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div id="register-step-1" class="register-step">
+          <div class="profile-cards">
+            <button class="profile-card" data-profile="entrepreneur">
+              <div class="profile-card-icon violet">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
               </div>
-              <div>
-                <h3>Ticket enregistre</h3>
-                <p>Les donnees ont ete extraites et sauvegardees</p>
+              <div class="profile-card-text">
+                <strong>Entrepreneur</strong>
+                <span>Dirigeant, freelance, auto-entrepreneur</span>
+              </div>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button class="profile-card" data-profile="accountant">
+              <div class="profile-card-icon emerald">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+              </div>
+              <div class="profile-card-text">
+                <strong>Expert-comptable</strong>
+                <span>Cabinet comptable, commissaire aux comptes</span>
+              </div>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+          <p class="auth-switch">Vous avez deja un compte ? <a id="link-to-login" href="#">Connexion</a></p>
+        </div>
+
+        <div id="register-step-2" class="register-step" style="display:none">
+          <form id="register-form" autocomplete="off">
+            <div id="register-error" class="error-msg" style="display:none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <span></span>
+            </div>
+            <div class="form-row">
+              <div class="input-group">
+                <input type="text" id="register-firstname" placeholder="Prenom" required />
+              </div>
+              <div class="input-group">
+                <input type="text" id="register-lastname" placeholder="Nom" required />
               </div>
             </div>
-            <div class="result-divider"></div>
-            <div id="result-details" class="result-details"></div>
-            <button type="button" id="new-capture-btn" class="btn-new-ticket">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Nouveau ticket
+            <div class="input-group">
+              <input type="email" id="register-email" placeholder="Email" required autocomplete="email" />
+            </div>
+            <div class="input-group">
+              <input type="password" id="register-password" placeholder="Mot de passe" required />
+            </div>
+            <div class="input-group">
+              <input type="password" id="register-password-confirm" placeholder="Confirmer le mot de passe" required />
+            </div>
+            <button type="submit" id="register-btn" class="btn-primary">
+              <span class="btn-text">Demander l'acces</span>
+              <span class="btn-loader" style="display:none">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
+              </span>
             </button>
-          </div>
+          </form>
+          <p class="auth-switch">Vous avez deja un compte ? <a id="link-to-login-2" href="#">Connexion</a></p>
         </div>
 
-        <!-- History -->
-        <div class="history-section">
-          <div class="history-header">
-            <h3>Derniers tickets</h3>
-            <button type="button" id="refresh-btn" class="btn-refresh" title="Rafraichir">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            </button>
-          </div>
-          <div id="history-list" class="history-list">
-            <div class="history-empty">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
-              <p>Aucun ticket recent</p>
-            </div>
+        <div id="register-success" class="register-step" style="display:none">
+          <div class="success-container">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            <h3>Demande recue !</h3>
+            <p>Notre equipe va examiner votre demande. Vous recevrez un email de confirmation.</p>
+            <button id="btn-back-to-welcome" class="btn-primary">Retour a l'accueil</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ====================================================================
-         SALARIE — Full Employee App
-         ==================================================================== -->
-    <div id="screen-salarie" class="screen">
+    <!-- ==================== DIRIGEANT ==================== -->
+    <div id="screen-dirigeant" class="screen">
 
-      <!-- ===== TAB: DASHBOARD ===== -->
-      <div id="tab-dashboard" class="tab-content active">
-        <header class="app-header">
-          <div class="header-left">
-            <div class="org-avatar">Y</div>
-            <div class="header-info">
-              <span class="org-name">Yfiten</span>
-              <span class="header-subtitle">Espace salarie</span>
+      <!-- ===== Dashboard ===== -->
+      <div id="dir-tab-dashboard" class="tab-content active">
+        <header class="mc-topbar">
+          <div class="mc-topbar-left">
+            <div class="mc-org-mark">Y</div>
+            <div>
+              <p class="mc-greeting">Bonjour</p>
+              <h1 id="org-name" class="mc-org-name">Organisation</h1>
             </div>
           </div>
-          <button type="button" class="header-action logout-action" title="Deconnexion">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </button>
+          <div class="mc-topbar-actions">
+            <button id="btn-quick-scan" class="mc-icon-btn" aria-label="Scanner">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+            </button>
+            <button id="btn-notifications" class="mc-icon-btn" data-dir-tab="dir-tab-notifications" aria-label="Notifications">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span id="notif-badge" class="badge" style="display:none">0</span>
+            </button>
+          </div>
         </header>
 
-        <div class="main-content" id="dashboard-content">
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-icon stat-icon-blue">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-              <div class="stat-info">
-                <span class="stat-value" id="stat-payslips">-</span>
-                <span class="stat-label">Bulletins</span>
-              </div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-icon stat-icon-amber">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              </div>
-              <div class="stat-info">
-                <span class="stat-value" id="stat-leaves">-</span>
-                <span class="stat-label">Conges en attente</span>
-              </div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-icon stat-icon-green">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              </div>
-              <div class="stat-info">
-                <span class="stat-value" id="stat-expenses">-</span>
-                <span class="stat-label">Depenses en attente</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="section-card">
-            <div class="section-card-header">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <span>Solde de conges</span>
-            </div>
-            <div class="balance-grid" id="leave-balance">
-              <div class="balance-item">
-                <span class="balance-value" id="bal-available">-</span>
-                <span class="balance-label">Disponibles</span>
-              </div>
-              <div class="balance-item">
-                <span class="balance-value" id="bal-used">-</span>
-                <span class="balance-label">Pris</span>
-              </div>
-              <div class="balance-item">
-                <span class="balance-value" id="bal-remaining">-</span>
-                <span class="balance-label">Restants</span>
-              </div>
-              <div class="balance-item">
-                <span class="balance-value" id="bal-carryover">-</span>
-                <span class="balance-label">Report</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="quick-actions">
-            <button type="button" class="quick-action-btn" id="qa-leave">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
-              <span>Demander un conge</span>
-            </button>
-            <button type="button" class="quick-action-btn" id="qa-expense">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>Soumettre une depense</span>
-            </button>
-            <button type="button" class="quick-action-btn" id="qa-payslips">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-              <span>Mes bulletins</span>
-            </button>
-          </div>
+        <div id="org-selector" class="org-selector" style="display:none">
+          <select id="org-select"></select>
         </div>
-      </div>
 
-      <!-- ===== TAB: PAYSLIPS ===== -->
-      <div id="tab-payslips" class="tab-content">
-        <header class="app-header">
-          <div class="header-left">
-            <div class="org-avatar">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            </div>
-            <div class="header-info">
-              <span class="org-name">Fiches de paie</span>
-              <span class="header-subtitle">Mes bulletins de salaire</span>
-            </div>
-          </div>
-          <button type="button" class="header-action btn-refresh-payslips" title="Rafraichir">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          </button>
-        </header>
-        <div class="main-content">
-          <div id="payslips-list" class="list-container">
-            <div class="list-empty">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <p>Aucun bulletin de paie</p>
-            </div>
-          </div>
-        </div>
-      </div>
+        <div class="main-content mc-main">
 
-      <!-- ===== TAB: LEAVES ===== -->
-      <div id="tab-leaves" class="tab-content">
-        <header class="app-header">
-          <div class="header-left">
-            <div class="org-avatar">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </div>
-            <div class="header-info">
-              <span class="org-name">Absences et conges</span>
-              <span class="header-subtitle">Mes demandes</span>
-            </div>
-          </div>
-          <button type="button" id="btn-new-leave" class="header-action-primary" title="Nouvelle demande">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </header>
-        <div class="main-content">
-          <div id="leaves-list" class="list-container">
-            <div class="list-empty">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <p>Aucune demande de conge</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ===== TAB: LEAVE FORM ===== -->
-      <div id="tab-leave-form" class="tab-content">
-        <header class="app-header">
-          <div class="header-left">
-            <button type="button" class="header-back" id="back-from-leave-form">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          <!-- Balance hero — typography only, no card -->
+          <section class="mc-hero">
+            <p class="mc-hero-label">Solde de trésorerie</p>
+            <h2 class="mc-hero-value" id="kpi-balance">0,00<span class="mc-hero-cur"> MAD</span></h2>
+            <button class="mc-hero-link" data-dir-tab="dir-tab-bank">
+              Détails du compte
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
             </button>
-            <div class="header-info">
-              <span class="org-name">Nouvelle demande</span>
-              <span class="header-subtitle">Absences et conges</span>
-            </div>
-          </div>
-        </header>
-        <div class="main-content">
-          <form id="leave-form" class="form-container">
-            <div class="form-group">
-              <label>Type de conge</label>
-              <select id="leave-type" required>
-                <option value="vacation">Conge annuel</option>
-                <option value="sick">Maladie</option>
-                <option value="birth">Naissance</option>
-                <option value="marriage">Mariage</option>
-                <option value="other">Autre</option>
-              </select>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Date de debut</label>
-                <input type="date" id="leave-start" required />
-              </div>
-              <div class="form-group">
-                <label>Date de fin</label>
-                <input type="date" id="leave-end" required />
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Heure debut</label>
-                <select id="leave-start-time">
-                  <option value="09:00">09:00 (Matin)</option>
-                  <option value="13:00">13:00 (Apres-midi)</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Heure fin</label>
-                <select id="leave-end-time">
-                  <option value="18:00">18:00 (Soir)</option>
-                  <option value="12:00">12:00 (Midi)</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Motif (optionnel)</label>
-              <textarea id="leave-reason" rows="3" placeholder="Decrivez le motif de votre demande..."></textarea>
-            </div>
-            <button type="submit" class="btn-submit" id="leave-submit-btn">
-              <span class="btn-text">Envoyer la demande</span>
-              <span class="btn-loader" style="display:none"></span>
-            </button>
-          </form>
-        </div>
-      </div>
+          </section>
 
-      <!-- ===== TAB: EXPENSES ===== -->
-      <div id="tab-expenses" class="tab-content">
-        <header class="app-header">
-          <div class="header-left">
-            <div class="org-avatar">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </div>
-            <div class="header-info">
-              <span class="org-name">Notes de frais</span>
-              <span class="header-subtitle">Mes depenses</span>
-            </div>
+          <!-- Period selector -->
+          <div class="mc-period">
+            <button class="mc-period-chip active">Ce mois</button>
+            <button class="mc-period-chip">7 jours</button>
+            <button class="mc-period-chip">Année</button>
           </div>
-          <button type="button" id="btn-new-expense" class="header-action-primary" title="Nouvelle depense">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </header>
-        <div class="main-content">
-          <div id="expenses-list" class="list-container">
-            <div class="list-empty">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              <p>Aucune note de frais</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- ===== TAB: EXPENSE FORM ===== -->
-      <div id="tab-expense-form" class="tab-content">
-        <header class="app-header">
-          <div class="header-left">
-            <button type="button" class="header-back" id="back-from-expense-form">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <div class="header-info">
-              <span class="org-name">Nouvelle depense</span>
-              <span class="header-subtitle">Notes de frais</span>
-            </div>
-          </div>
-        </header>
-        <div class="main-content">
-          <form id="expense-form" class="form-container">
-            <div class="form-group">
-              <label>Titre</label>
-              <input type="text" id="expense-title" placeholder="Ex: Repas client, Transport..." required />
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Montant</label>
-                <input type="number" id="expense-amount" step="0.01" placeholder="0.00" />
-              </div>
-              <div class="form-group">
-                <label>Devise</label>
-                <select id="expense-currency">
-                  <option value="MAD">MAD</option>
-                  <option value="EUR">EUR</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="expense-date" />
-            </div>
-            <div class="form-group">
-              <label>Description (optionnel)</label>
-              <textarea id="expense-description" rows="3" placeholder="Details de la depense..."></textarea>
-            </div>
-            <div class="form-group">
-              <label>Justificatif</label>
-              <div id="expense-capture-placeholder" class="capture-zone">
-                <div class="capture-zone-actions">
-                  <button type="button" id="expense-photo-btn" class="capture-zone-btn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    <span>Photo</span>
-                  </button>
-                  <button type="button" id="expense-gallery-btn" class="capture-zone-btn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    <span>Galerie</span>
-                  </button>
+          <!-- Summary card -->
+          <section class="mc-summary">
+            <div class="mc-summary-row">
+              <div class="mc-summary-left">
+                <span class="mc-dot mc-dot-green"></span>
+                <div>
+                  <div class="mc-summary-label">Recettes</div>
+                  <div class="mc-summary-sub">Encaissé ce mois</div>
                 </div>
               </div>
-              <div id="expense-preview" class="capture-preview-small" style="display:none">
-                <img id="expense-preview-img" src="" alt="Justificatif" />
-                <button type="button" id="expense-retake-btn" class="btn-retake-small">Changer</button>
+              <div class="mc-summary-amount mc-amount-pos" id="kpi-revenue">+0,00 MAD</div>
+            </div>
+            <div class="mc-summary-row">
+              <div class="mc-summary-left">
+                <span class="mc-dot mc-dot-red"></span>
+                <div>
+                  <div class="mc-summary-label">Dépenses</div>
+                  <div class="mc-summary-sub">Reçus & factures</div>
+                </div>
+              </div>
+              <div class="mc-summary-amount mc-amount-neg" id="kpi-expenses">−0,00 MAD</div>
+            </div>
+            <div class="mc-summary-divider"></div>
+            <div class="mc-summary-row">
+              <div class="mc-summary-left">
+                <span class="mc-dot mc-dot-dark"></span>
+                <div>
+                  <div class="mc-summary-label mc-summary-strong">Solde net</div>
+                  <div class="mc-summary-sub">Recettes − Dépenses</div>
+                </div>
+              </div>
+              <div class="mc-summary-amount mc-amount-strong" id="mc-net">0,00 MAD</div>
+            </div>
+          </section>
+
+          <!-- Action requise -->
+          <section class="mc-actions-section">
+            <div class="mc-section-head">
+              <h3>À traiter</h3>
+              <span class="mc-section-count" id="mc-todo-count">0</span>
+            </div>
+            <div class="mc-action-list">
+              <button class="mc-action-item" data-dir-tab="dir-tab-invoices">
+                <div class="mc-action-icon mc-action-icon-amber">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="mc-action-text">
+                  <div class="mc-action-title">Factures à encaisser</div>
+                  <div class="mc-action-sub" id="mc-pending-sub">Aucune facture en attente</div>
+                </div>
+                <span class="mc-action-count" id="kpi-pending">0</span>
+                <svg class="mc-action-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button class="mc-action-item" data-dir-tab="dir-tab-tickets">
+                <div class="mc-action-icon mc-action-icon-indigo">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                </div>
+                <div class="mc-action-text">
+                  <div class="mc-action-title">Reçus scannés</div>
+                  <div class="mc-action-sub">Vos reçus enregistrés</div>
+                </div>
+                <span class="mc-action-count" id="kpi-documents">0</span>
+                <svg class="mc-action-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </section>
+
+          <!-- Activity -->
+          <section class="mc-activity">
+            <div class="mc-section-head">
+              <h3>Activité récente</h3>
+            </div>
+            <div id="recent-activity-list" class="list-container"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ===== Bank ===== -->
+      <div id="dir-tab-bank" class="tab-content">
+        <header class="screen-header">
+          <div class="header-titles">
+            <h1>Comptes pro</h1>
+            <p class="header-subtitle">Comptes, transactions et releves</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="btn-import-statement" class="icon-btn" title="Importer un releve">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </button>
+            <button id="btn-refresh-bank" class="icon-btn" title="Actualiser">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <!-- Hidden file input for PDF import -->
+        <input type="file" id="statement-file-input" accept="application/pdf" multiple style="display:none" />
+
+        <div class="main-content">
+          <!-- Segment: Comptes / Transactions / Releves -->
+          <div class="segment-control" id="bank-segment-control">
+            <button class="segment-btn active" data-bank-seg="transactions">Transactions</button>
+            <button class="segment-btn" data-bank-seg="statements">Releves</button>
+          </div>
+
+          <!-- === Transactions panel === -->
+          <div id="bank-seg-transactions" class="bank-segment active">
+            <!-- Filters bar -->
+            <div class="filter-bar">
+              <div class="filter-bar-row">
+                <div class="filter-search">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="tx-search" placeholder="Rechercher..." />
+                </div>
+                <button id="btn-tx-filter-toggle" class="filter-toggle-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                  Filtres
+                </button>
+              </div>
+              <div id="tx-filter-panel" class="filter-panel" style="display:none">
+                <div class="filter-row">
+                  <div class="filter-group">
+                    <label>Du</label>
+                    <input type="date" id="tx-filter-from" />
+                  </div>
+                  <div class="filter-group">
+                    <label>Au</label>
+                    <input type="date" id="tx-filter-to" />
+                  </div>
+                </div>
+                <div class="filter-row">
+                  <div class="filter-group" style="flex:1">
+                    <label>Direction</label>
+                    <select id="tx-filter-direction">
+                      <option value="">Toutes</option>
+                      <option value="credit">Entrees</option>
+                      <option value="debit">Sorties</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="filter-actions">
+                  <button id="btn-tx-filter-reset" class="btn-text">Reinitialiser</button>
+                  <button id="btn-tx-filter-apply" class="btn-secondary">Appliquer</button>
+                </div>
               </div>
             </div>
-            <button type="submit" class="btn-submit" id="expense-submit-btn">
-              <span class="btn-text">Soumettre la depense</span>
-              <span class="btn-loader" style="display:none"></span>
+            <div id="transactions-list" class="list-container"></div>
+          </div>
+
+          <!-- === Releves panel === -->
+          <div id="bank-seg-statements" class="bank-segment" style="display:none">
+            <div class="statement-import-card" id="statement-import-card">
+              <div class="import-card-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              </div>
+              <p class="import-card-title">Importer un releve bancaire</p>
+              <p class="import-card-desc">Deposez vos releves PDF pour extraire automatiquement les transactions</p>
+              <button id="btn-import-statement-card" class="btn-primary" style="max-width:240px;margin:0 auto">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Ajouter un PDF
+              </button>
+            </div>
+            <!-- Import progress -->
+            <div id="statement-import-progress" style="display:none" class="import-progress">
+              <div class="import-progress-header">
+                <svg class="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
+                <span id="import-progress-text">Extraction en cours...</span>
+              </div>
+              <div id="import-progress-file" class="import-progress-file"></div>
+            </div>
+            <div class="section" style="margin-top:16px">
+              <h2 class="section-title">Releves importes</h2>
+              <div id="statements-list" class="list-container"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Invoices ===== -->
+      <div id="dir-tab-invoices" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-entrees">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Factures</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content invoices-main">
+          <div id="invoices-summary" class="inv-summary"></div>
+          <div id="invoices-filters" class="inv-filters"></div>
+          <div class="inv-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="invoices-search" type="text" placeholder="Rechercher une facture, client..." autocomplete="off" />
+          </div>
+          <div id="invoices-clients-list" class="inv-list"></div>
+        </div>
+        <button id="btn-new-invoice-fab" class="fab" data-dir-tab="dir-tab-invoice-new" aria-label="Nouvelle facture">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Nouvelle facture</span>
+        </button>
+      </div>
+
+      <!-- ===== Tickets ===== -->
+      <div id="dir-tab-tickets" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-sorties">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Recus</h1>
+          <button id="btn-refresh-tickets" class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+          </button>
+        </header>
+        <div class="main-content">
+          <div class="ticket-actions-row">
+            <button id="btn-take-photo" class="ticket-action-btn">
+              <div class="ticket-action-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </div>
+              <span>Scanner</span>
             </button>
+            <button id="btn-pick-gallery" class="ticket-action-btn">
+              <div class="ticket-action-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+              </div>
+              <span>Importer</span>
+            </button>
+          </div>
+
+          <div class="scan-tips">
+            <div class="scan-tips-title">Pour un meilleur résultat</div>
+            <ul>
+              <li>Posez le document sur une surface contrastée</li>
+              <li>Si le cadre coupe le document, faites glisser ses coins vers l'extérieur</li>
+              <li>Évitez les ombres et les reflets — bonne lumière diffuse</li>
+              <li>Stabilisez le téléphone avant de capturer pour éviter le flou</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">Historique</h2>
+            <div id="tickets-list" class="list-container"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ticket Scan Modal -->
+      <div id="ticket-scan-modal" class="modal-overlay" style="display:none">
+        <div class="modal-container modal-fullscreen">
+          <header class="modal-header">
+            <button id="btn-close-scan-modal" class="back-btn">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </button>
+            <h2>Analyse du recu</h2>
+          </header>
+          <div class="modal-body">
+            <div id="scan-step-preview" class="scan-step">
+              <img id="capture-preview" class="scan-preview-img" alt="Apercu" />
+            </div>
+            <div id="analyzing-overlay" class="scan-step scan-analyzing" style="display:none">
+              <div class="analyzing-content">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" class="spinner"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
+                <p>Analyse en cours...</p>
+                <p class="analyzing-sub">Extraction des donnees du recu</p>
+              </div>
+            </div>
+            <div id="ticket-result" class="scan-step scan-result" style="display:none">
+              <div class="result-success-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+              </div>
+              <h3 class="result-title">Recu enregistre</h3>
+              <div id="result-details" class="result-details-card"></div>
+              <button id="btn-new-ticket" class="btn-primary btn-full">Retour a l'historique</button>
+            </div>
+            <div id="scan-quality-warning" class="scan-step scan-quality" style="display:none">
+              <div class="quality-warn-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <h3 class="result-title">Qualité insuffisante</h3>
+              <p id="scan-quality-msg" class="quality-warn-msg"></p>
+              <button id="btn-quality-retry" class="btn-primary btn-full">Reessayer</button>
+              <button id="btn-quality-continue" class="btn-text btn-full">Continuer quand même</button>
+            </div>
+            <div id="scan-error" class="scan-step scan-error" style="display:none">
+              <div class="result-success-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>
+              </div>
+              <h3 class="result-title" id="scan-error-msg">Erreur</h3>
+              <button id="btn-retry-scan" class="btn-secondary btn-full">Reessayer</button>
+              <button id="btn-close-error" class="btn-text btn-full">Fermer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Catalog Picker Modal -->
+      <div id="catalog-picker-modal" class="modal-overlay" style="display:none">
+        <div class="modal-container modal-fullscreen">
+          <header class="modal-header">
+            <button id="btn-close-catalog" class="back-btn">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </button>
+            <h2 id="catalog-picker-title">Produits</h2>
+          </header>
+          <div class="modal-body">
+            <input type="search" id="catalog-search" class="form-input" placeholder="Rechercher..." style="margin:12px 16px;width:calc(100% - 32px)" />
+            <div id="catalog-list" class="list-container" style="padding:0 16px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF Preview Modal -->
+      <div id="pdf-preview-modal" class="modal-overlay" style="display:none">
+        <div class="modal-container modal-fullscreen">
+          <header class="modal-header">
+            <button id="btn-close-pdf-preview" class="back-btn">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </button>
+            <h2>PDF</h2>
+          </header>
+          <div id="pdf-preview-container" class="modal-body" style="padding:0;height:calc(100% - 56px);overflow:auto">
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Entrees (Income) ===== -->
+      <div id="dir-tab-entrees" class="tab-content">
+        <header class="screen-header">
+          <div class="header-titles">
+            <h1>Entrées</h1>
+            <p class="header-subtitle">Revenus et facturation</p>
+          </div>
+          <button class="icon-btn" data-dir-tab="dir-tab-invoice-new">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </header>
+        <div class="main-content">
+          <!-- Summary strip -->
+          <div class="cat-summary">
+            <div class="cat-summary-item">
+              <span class="cat-summary-label">Encaissé ce mois</span>
+              <span class="cat-summary-value" id="cat-entrees-revenue">0 MAD</span>
+            </div>
+            <div class="cat-summary-divider"></div>
+            <div class="cat-summary-item">
+              <span class="cat-summary-label">À encaisser</span>
+              <span class="cat-summary-value" id="cat-entrees-pending">0</span>
+            </div>
+          </div>
+
+          <!-- Tile grid -->
+          <div class="cat-grid">
+            <button class="cat-tile" data-dir-tab="dir-tab-invoices">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-blue">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Factures</div>
+              <div class="cat-tile-sub" id="cat-entrees-invoices-sub">Gérer les factures clients</div>
+            </button>
+            <button class="cat-tile" data-dir-tab="dir-tab-quotes">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-indigo">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Devis</div>
+              <div class="cat-tile-sub" id="cat-entrees-quotes-sub">Propositions commerciales</div>
+            </button>
+            <button class="cat-tile" data-dir-tab="dir-tab-clients">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-emerald">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Clients</div>
+              <div class="cat-tile-sub" id="cat-entrees-clients-sub">Annuaire et coordonnées</div>
+            </button>
+            <button class="cat-tile" data-dir-tab="dir-tab-products">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-violet">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Produits & services</div>
+              <div class="cat-tile-sub" id="cat-entrees-products-sub">Catalogue facturable</div>
+            </button>
+          </div>
+
+          <!-- Quick CTA -->
+          <button class="cat-cta" data-dir-tab="dir-tab-invoice-new">
+            <span class="cat-cta-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            <span>Créer une facture</span>
+            <svg class="cat-cta-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== Sorties (Expenses) ===== -->
+      <div id="dir-tab-sorties" class="tab-content">
+        <header class="screen-header">
+          <div class="header-titles">
+            <h1>Sorties</h1>
+            <p class="header-subtitle">Dépenses et fournisseurs</p>
+          </div>
+          <button class="icon-btn" data-action="scan-ticket">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </header>
+        <div class="main-content">
+          <!-- Summary strip -->
+          <div class="cat-summary">
+            <div class="cat-summary-item">
+              <span class="cat-summary-label">Dépenses ce mois</span>
+              <span class="cat-summary-value" id="cat-sorties-expenses">0 MAD</span>
+            </div>
+            <div class="cat-summary-divider"></div>
+            <div class="cat-summary-item">
+              <span class="cat-summary-label">Reçus scannés</span>
+              <span class="cat-summary-value" id="cat-sorties-tickets">0</span>
+            </div>
+          </div>
+
+          <!-- Tile grid -->
+          <div class="cat-grid">
+            <button class="cat-tile" data-dir-tab="dir-tab-tickets">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-orange">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4"/><path d="M2 15v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Reçus & tickets</div>
+              <div class="cat-tile-sub">Notes scannées par OCR</div>
+            </button>
+            <button class="cat-tile" data-dir-tab="dir-tab-supplier-invoices">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-red">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Fact. fournisseurs</div>
+              <div class="cat-tile-sub">Factures à régler</div>
+            </button>
+            <button class="cat-tile" data-dir-tab="dir-tab-expense-notes">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-pink">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h10l6 6v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><line x1="12" y1="18" x2="12" y2="12"/><path d="M9 15l3-3 3 3"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Notes de frais</div>
+              <div class="cat-tile-sub">Remboursements</div>
+            </button>
+            <button class="cat-tile" data-dir-tab="dir-tab-suppliers">
+              <div class="cat-tile-top">
+                <div class="cat-tile-icon bg-amber">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 12h20"/></svg>
+                </div>
+                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </div>
+              <div class="cat-tile-title">Fournisseurs</div>
+              <div class="cat-tile-sub">Carnet d'adresses</div>
+            </button>
+          </div>
+
+          <!-- Quick CTA -->
+          <button class="cat-cta" data-action="scan-ticket">
+            <span class="cat-cta-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+            </span>
+            <span>Scanner un reçu</span>
+            <svg class="cat-cta-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== More ===== -->
+      <div id="dir-tab-more" class="tab-content">
+        <header class="screen-header profile-header">
+          <div class="profile-avatar" id="dir-profile-avatar">Y</div>
+          <div class="header-titles">
+            <h1 id="dir-profile-name">Nom</h1>
+            <p class="header-subtitle" id="dir-profile-email">email@example.com</p>
+          </div>
+          <button class="icon-btn" data-dir-tab="dir-tab-notifications" style="position:relative">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span id="notif-badge" class="notif-badge" style="display:none">0</span>
+          </button>
+        </header>
+        <div class="main-content">
+
+          <div class="menu-section">
+            <p class="menu-group-title">Salaries</p>
+            <button class="menu-item" data-dir-tab="dir-tab-collaborators">
+              <div class="menu-icon bg-teal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+              <span>Annuaire</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button class="menu-item" data-dir-tab="dir-tab-payslips-manage">
+              <div class="menu-icon bg-emerald"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M2 8h20"/><path d="M7 13h3"/><path d="M7 17h5"/><circle cx="17" cy="15" r="2"/></svg></div>
+              <span>Bulletins de paie</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button class="menu-item" data-dir-tab="dir-tab-leaves-manage">
+              <div class="menu-icon bg-amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg></div>
+              <span>Conges et absences</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+
+          <div class="menu-section">
+            <p class="menu-group-title">Tresorerie et comptabilite</p>
+            <button class="menu-item" data-dir-tab="dir-tab-treasury">
+              <div class="menu-icon bg-violet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+              <span>Previsions</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button class="menu-item" data-dir-tab="dir-tab-tva-report">
+              <div class="menu-icon bg-cyan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="6"/><path d="M10 10.5a2 2 0 0 1 2-1.5 2 2 0 0 1 0 4 2 2 0 0 0 0 4"/><path d="M12 17v.01"/></svg></div>
+              <span>Rapport TVA</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button class="menu-item" data-dir-tab="dir-tab-tax-declarations">
+              <div class="menu-icon bg-pink"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></div>
+              <span>Declarations fiscales</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+
+          <div class="menu-section">
+            <p class="menu-group-title">Documents</p>
+            <button class="menu-item" data-dir-tab="dir-tab-legal">
+              <div class="menu-icon bg-slate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1L1 7l11 6 11-6-11-6z"/><path d="M1 13l11 6 11-6"/><path d="M1 19l11 6 11-6"/></svg></div>
+              <span>Documents juridiques</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button class="menu-item" data-dir-tab="dir-tab-collecte">
+              <div class="menu-icon bg-green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+              <span>Collecte</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+
+          <div class="menu-section">
+            <p class="menu-group-title">Communication</p>
+            <button class="menu-item" data-dir-tab="dir-tab-messages">
+              <div class="menu-icon bg-blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+              <span>Messages</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+
+          <div class="menu-section">
+            <button class="menu-item" data-dir-tab="dir-tab-settings">
+              <div class="menu-icon bg-slate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
+              <span>Parametres</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button class="menu-item danger" id="btn-logout-dir">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>Se deconnecter</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Sub-screens ===== -->
+
+      <!-- Notifications -->
+      <div id="dir-tab-notifications" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-dashboard">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Notifications</h1>
+        </header>
+        <div class="main-content">
+          <div id="notifications-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div id="dir-tab-messages" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Messages</h1>
+        </header>
+        <div class="main-content">
+          <div id="messages-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Clients -->
+      <div id="dir-tab-clients" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-entrees">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Clients</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content invoices-main">
+          <div id="clients-summary" class="inv-summary"></div>
+          <div class="inv-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="clients-search" type="text" placeholder="Rechercher un client..." autocomplete="off" />
+          </div>
+          <div id="clients-list" class="inv-list"></div>
+        </div>
+        <button class="fab" data-dir-tab="dir-tab-client-new" aria-label="Nouveau client">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Nouveau client</span>
+        </button>
+      </div>
+
+      <!-- Suppliers -->
+      <div id="dir-tab-suppliers" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-sorties">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Fournisseurs</h1>
+        </header>
+        <div class="main-content">
+          <div id="suppliers-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Products -->
+      <div id="dir-tab-products" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-entrees">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Produits</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content invoices-main">
+          <div id="products-summary" class="inv-summary"></div>
+          <div id="products-filters" class="inv-filters"></div>
+          <div class="inv-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="products-search" type="text" placeholder="Rechercher un produit, service..." autocomplete="off" />
+          </div>
+          <div id="products-list" class="inv-list"></div>
+        </div>
+        <button class="fab" data-dir-tab="dir-tab-product-new" aria-label="Nouveau produit">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Nouveau produit</span>
+        </button>
+      </div>
+
+      <!-- New Product / Service -->
+      <div id="dir-tab-product-new" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-products">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Nouveau produit</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content form-main">
+          <form id="product-form" class="form pro-form">
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#ede9fe;color:#7c3aed"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+                <div><div class="pro-section-head">Type</div><div class="pro-section-sub">Choisissez produit ou service</div></div>
+              </div>
+              <div class="pro-toggle" id="product-type-toggle">
+                <button type="button" class="pro-toggle-opt active" data-value="product">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16.5 9.4 7.55 4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                  <span>Produit</span>
+                </button>
+                <button type="button" class="pro-toggle-opt" data-value="service">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span>Service</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dbeafe;color:#2563eb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/></svg></div>
+                <div><div class="pro-section-head">Informations</div><div class="pro-section-sub">Nom et description</div></div>
+              </div>
+              <div class="form-group">
+                <label for="product-name">Nom</label>
+                <input type="text" id="product-name" placeholder="Nom du produit ou service" required />
+              </div>
+              <div class="form-group">
+                <label for="product-description">Description</label>
+                <textarea id="product-description" rows="3" placeholder="Description (optionnel)"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="product-unit">Unite</label>
+                <input type="text" id="product-unit" placeholder="piece, heure, kg..." />
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dcfce7;color:#16a34a"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                <div><div class="pro-section-head">Tarification</div><div class="pro-section-sub">Prix et TVA</div></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="product-price">Prix HT</label>
+                  <div class="input-with-suffix">
+                    <input type="number" id="product-price" step="0.01" min="0" placeholder="0.00" required />
+                    <span class="input-suffix">MAD</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="product-tva">TVA</label>
+                  <select id="product-tva">
+                    <option value="0">0%</option>
+                    <option value="7">7%</option>
+                    <option value="10">10%</option>
+                    <option value="14">14%</option>
+                    <option value="20" selected>20%</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="pro-form-footer">
+              <button type="submit" class="btn-primary pro-submit">Enregistrer le produit</button>
+            </div>
           </form>
         </div>
       </div>
 
-      <!-- ===== TAB: DIRECTORY ===== -->
-      <div id="tab-directory" class="tab-content">
-        <header class="app-header">
-          <div class="header-left">
-            <button type="button" class="header-back" id="back-from-directory">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <div class="header-info">
-              <span class="org-name">Annuaire</span>
-              <span class="header-subtitle">Mes collegues</span>
-            </div>
-          </div>
-        </header>
-        <div class="main-content">
-          <div id="directory-list" class="list-container">
-            <div class="list-empty">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <p>Aucun collegue trouve</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ===== TAB: PROFILE ===== -->
-      <div id="tab-profile" class="tab-content">
-        <header class="app-header">
-          <div class="header-left">
-            <div class="org-avatar" id="profile-avatar">U</div>
-            <div class="header-info">
-              <span class="org-name" id="profile-name">Mon profil</span>
-              <span class="header-subtitle" id="profile-job">Salarie</span>
-            </div>
-          </div>
-          <button type="button" class="header-action logout-action" title="Deconnexion">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <!-- Collaborators -->
+      <div id="dir-tab-collaborators" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
           </button>
+          <h1>Collaborateurs</h1>
         </header>
         <div class="main-content">
-          <div class="profile-section" id="profile-content">
-            <div class="profile-card">
-              <div class="profile-header-card">
-                <div class="profile-avatar-large" id="profile-avatar-large">U</div>
-                <h3 id="profile-fullname">-</h3>
-                <p id="profile-email">-</p>
-              </div>
-            </div>
-            <div class="section-card">
-              <div class="section-card-header">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <span>Informations personnelles</span>
-              </div>
-              <div class="profile-details" id="profile-personal"></div>
-            </div>
-            <div class="section-card">
-              <div class="section-card-header">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                <span>Informations professionnelles</span>
-              </div>
-              <div class="profile-details" id="profile-professional"></div>
-            </div>
-            <div class="profile-menu">
-              <button type="button" class="profile-menu-item" id="menu-directory">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span>Annuaire</span>
-                <svg class="menu-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-              <button type="button" class="profile-menu-item menu-logout logout-action">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                <span>Se deconnecter</span>
-                <svg class="menu-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </div>
-          </div>
+          <div id="collaborators-list" class="list-container"></div>
         </div>
       </div>
 
-      <!-- ===== BOTTOM NAVIGATION ===== -->
-      <nav class="bottom-nav" id="bottom-nav">
-        <button type="button" class="nav-item active" data-tab="dashboard">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <!-- Payslips Manage -->
+      <div id="dir-tab-payslips-manage" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Bulletins de paie</h1>
+        </header>
+        <div class="main-content">
+          <div id="payslips-manage-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Leaves Manage -->
+      <div id="dir-tab-leaves-manage" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Conges et absences</h1>
+        </header>
+        <div class="main-content">
+          <div id="leaves-manage-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Expense Notes -->
+      <div id="dir-tab-expense-notes" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-sorties">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Notes de frais</h1>
+        </header>
+        <div class="main-content">
+          <div id="expense-notes-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Legal Documents -->
+      <div id="dir-tab-legal" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Documents juridiques</h1>
+        </header>
+        <div class="main-content">
+          <div id="legal-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Treasury -->
+      <div id="dir-tab-treasury" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Tresorerie</h1>
+        </header>
+        <div class="main-content">
+          <div id="treasury-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div id="dir-tab-settings" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Parametres</h1>
+        </header>
+        <div class="main-content">
+          <div id="settings-content" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- TVA Report -->
+      <div id="dir-tab-tva-report" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Rapport TVA</h1>
+        </header>
+        <div class="main-content">
+          <div id="tva-report-content" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Tax Declarations -->
+      <div id="dir-tab-tax-declarations" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Declarations fiscales</h1>
+        </header>
+        <div class="main-content">
+          <div id="tax-declarations-content" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Collecte -->
+      <div id="dir-tab-collecte" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-more">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Collecte</h1>
+        </header>
+        <div class="main-content">
+          <div id="collecte-content" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- New Invoice -->
+      <div id="dir-tab-invoice-new" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-invoices">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Nouvelle facture</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content form-main">
+          <form id="invoice-form" class="form pro-form">
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dbeafe;color:#2563eb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                <div><div class="pro-section-head">Client</div><div class="pro-section-sub">A qui s'adresse cette facture</div></div>
+              </div>
+              <div class="form-group">
+                <select id="invoice-client" required>
+                  <option value="">Selectionner un client</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#fef3c7;color:#d97706"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <div><div class="pro-section-head">Dates</div><div class="pro-section-sub">Emission et echeance</div></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="invoice-date">Date</label>
+                  <input type="date" id="invoice-date" required />
+                </div>
+                <div class="form-group">
+                  <label for="invoice-due-date">Echeance</label>
+                  <input type="date" id="invoice-due-date" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="invoice-description">Description</label>
+                <textarea id="invoice-description" rows="2" placeholder="Description de la facture"></textarea>
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dcfce7;color:#16a34a"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+                <div><div class="pro-section-head">Lignes</div><div class="pro-section-sub">Produits et services factures</div></div>
+              </div>
+              <div id="invoice-lines" class="line-items"></div>
+              <div class="line-add-buttons">
+                <button type="button" id="btn-add-invoice-line" class="btn-text">+ Ligne vide</button>
+                <button type="button" id="btn-add-invoice-product" class="btn-text">+ Produit</button>
+                <button type="button" id="btn-add-invoice-service" class="btn-text">+ Service</button>
+              </div>
+            </div>
+
+            <div class="pro-form-section pro-totals-hero">
+              <div class="pro-totals-row"><span>Total HT</span><span id="invoice-total-ht">0,00 MAD</span></div>
+              <div class="pro-totals-row"><span>TVA</span><span id="invoice-total-tva">0,00 MAD</span></div>
+              <div class="pro-totals-row pro-totals-grand"><span>Total TTC</span><span id="invoice-total-ttc">0,00 MAD</span></div>
+            </div>
+          </form>
+        </div>
+        <div class="pro-form-actions">
+          <button type="button" id="btn-preview-invoice-pdf" class="pro-action-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Apercu
+          </button>
+          <button type="submit" form="invoice-form" class="pro-action-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Enregistrer
+          </button>
+        </div>
+      </div>
+
+      <!-- New Quote -->
+      <div id="dir-tab-quote-new" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-invoices">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Nouveau devis</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content form-main">
+          <form id="quote-form" class="form pro-form">
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dbeafe;color:#2563eb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+                <div><div class="pro-section-head">Client</div><div class="pro-section-sub">A qui s'adresse ce devis</div></div>
+              </div>
+              <div class="form-group">
+                <select id="quote-client" required>
+                  <option value="">Selectionner un client</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#fef3c7;color:#d97706"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <div><div class="pro-section-head">Dates</div><div class="pro-section-sub">Emission et validite</div></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="quote-date">Date</label>
+                  <input type="date" id="quote-date" required />
+                </div>
+                <div class="form-group">
+                  <label for="quote-valid-until">Validite</label>
+                  <input type="date" id="quote-valid-until" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="quote-description">Description</label>
+                <textarea id="quote-description" rows="2" placeholder="Description du devis"></textarea>
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dcfce7;color:#16a34a"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+                <div><div class="pro-section-head">Lignes</div><div class="pro-section-sub">Produits et services</div></div>
+              </div>
+              <div id="quote-lines" class="line-items"></div>
+              <div class="line-add-buttons">
+                <button type="button" id="btn-add-quote-line" class="btn-text">+ Ligne vide</button>
+                <button type="button" id="btn-add-quote-product" class="btn-text">+ Produit</button>
+                <button type="button" id="btn-add-quote-service" class="btn-text">+ Service</button>
+              </div>
+            </div>
+
+            <div class="pro-form-section pro-totals-hero">
+              <div class="pro-totals-row"><span>Total HT</span><span id="quote-total-ht">0,00 MAD</span></div>
+              <div class="pro-totals-row"><span>TVA</span><span id="quote-total-tva">0,00 MAD</span></div>
+              <div class="pro-totals-row pro-totals-grand"><span>Total TTC</span><span id="quote-total-ttc">0,00 MAD</span></div>
+            </div>
+          </form>
+        </div>
+        <div class="pro-form-actions">
+          <button type="button" id="btn-preview-quote-pdf" class="pro-action-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Apercu
+          </button>
+          <button type="submit" form="quote-form" class="pro-action-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Enregistrer
+          </button>
+        </div>
+      </div>
+
+      <!-- New Client -->
+      <div id="dir-tab-client-new" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-clients">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Nouveau client</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content form-main">
+          <form id="client-form" class="form pro-form">
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dbeafe;color:#2563eb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                <div><div class="pro-section-head">Identite</div><div class="pro-section-sub">Nom du client ou raison sociale</div></div>
+              </div>
+              <div class="form-group">
+                <label for="client-name">Nom / Raison sociale</label>
+                <input type="text" id="client-name" placeholder="Ex. ACME SARL" required />
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#dcfce7;color:#16a34a"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+                <div><div class="pro-section-head">Contact</div><div class="pro-section-sub">Email et telephone</div></div>
+              </div>
+              <div class="form-group">
+                <label for="client-email">Email</label>
+                <input type="email" id="client-email" placeholder="contact@exemple.com" />
+              </div>
+              <div class="form-group">
+                <label for="client-phone">Telephone</label>
+                <input type="tel" id="client-phone" placeholder="+212 6XX XXX XXX" />
+              </div>
+            </div>
+
+            <div class="pro-form-section">
+              <div class="pro-section-title">
+                <div class="pro-section-icon" style="background:#ede9fe;color:#7c3aed"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+                <div><div class="pro-section-head">Adresse et fiscalite</div><div class="pro-section-sub">Donnees legales du client</div></div>
+              </div>
+              <div class="form-group">
+                <label for="client-address">Adresse</label>
+                <textarea id="client-address" rows="2" placeholder="Adresse complete"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="client-ice">ICE</label>
+                <input type="text" id="client-ice" placeholder="Identifiant commun de l'entreprise" />
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="pro-form-actions">
+          <button type="submit" form="client-form" class="pro-action-primary pro-action-full">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Enregistrer le client
+          </button>
+        </div>
+      </div>
+
+      <!-- Quotes -->
+      <div id="dir-tab-quotes" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-entrees">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Devis</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content invoices-main">
+          <div id="quotes-summary" class="inv-summary"></div>
+          <div id="quotes-filters" class="inv-filters"></div>
+          <div class="inv-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="quotes-search" type="text" placeholder="Rechercher un devis, client..." autocomplete="off" />
+          </div>
+          <div id="quotes-list" class="inv-list"></div>
+        </div>
+        <button class="fab" data-dir-tab="dir-tab-quote-new" aria-label="Nouveau devis">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Nouveau devis</span>
+        </button>
+      </div>
+
+      <!-- Supplier Invoices -->
+      <div id="dir-tab-supplier-invoices" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-sorties">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Factures fournisseurs</h1>
+        </header>
+        <div class="main-content">
+          <div id="supplier-invoices-list" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Invoice Detail -->
+      <div id="dir-tab-invoice-detail" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-invoices">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Detail facture</h1>
+        </header>
+        <div class="main-content">
+          <div id="invoice-detail-content" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Quote Detail -->
+      <div id="dir-tab-quote-detail" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-invoices">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Detail devis</h1>
+        </header>
+        <div class="main-content">
+          <div id="quote-detail-content" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Ticket Detail -->
+      <div id="dir-tab-ticket-detail" class="tab-content sub-screen">
+        <header class="screen-header">
+          <button class="back-btn" data-back="dir-tab-tickets">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Detail ticket</h1>
+        </header>
+        <div class="main-content">
+          <div id="ticket-detail-content" class="list-container"></div>
+        </div>
+      </div>
+
+      <!-- Dirigeant Bottom Nav -->
+      <nav id="dir-bottom-nav" class="bottom-nav">
+        <button class="nav-item active" data-dir-tab="dir-tab-dashboard">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           <span>Accueil</span>
         </button>
-        <button type="button" class="nav-item" data-tab="payslips">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <span>Bulletins</span>
+        <button class="nav-item" data-dir-tab="dir-tab-bank">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/><path d="M6 16h2"/><path d="M12 16h6"/></svg>
+          <span>Comptes</span>
         </button>
-        <button type="button" class="nav-item" data-tab="leaves">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span>Conges</span>
+        <button class="nav-item" data-dir-tab="dir-tab-entrees">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14"/><path d="M5 9l7-7 7 7"/><path d="M3 20a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1"/></svg>
+          <span>Entrees</span>
         </button>
-        <button type="button" class="nav-item" data-tab="expenses">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          <span>Depenses</span>
+        <button class="nav-item" data-dir-tab="dir-tab-sorties">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14"/><path d="M19 9l-7 7-7-7"/><path d="M3 20a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1"/></svg>
+          <span>Sorties</span>
         </button>
-        <button type="button" class="nav-item" data-tab="profile">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <span>Profil</span>
+        <button class="nav-item" data-dir-tab="dir-tab-more">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+          <span>Plus</span>
         </button>
       </nav>
     </div>
+
+    <!-- ==================== SALARIE ==================== -->
 
   </div>
 
