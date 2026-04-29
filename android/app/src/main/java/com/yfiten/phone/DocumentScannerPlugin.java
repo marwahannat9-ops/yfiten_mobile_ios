@@ -23,17 +23,28 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanning;
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 
 @CapacitorPlugin(name = "DocumentScanner")
 public class DocumentScannerPlugin extends Plugin {
 
     public static final int REQ_CODE = 9821;
-    private PluginCall pendingCall;
+    // Saved-call id stays in process memory when alive; on MIUI the process may
+    // be killed while the ML Kit scanner activity is foregrounded, so we ALSO
+    // hand the call to the bridge via saveCall(). bridge.getSavedCall(id) keeps
+    // working after the bridge is recreated on the new process.
+    private String pendingCallId;
 
     @PluginMethod
     public void scan(PluginCall call) {
-        pendingCall = call;
+        // Keep the call alive across process death — MIUI kills us while the
+        // scanner activity is up. Without saveCall(), pendingCall is null on
+        // recovery and the captured doc is silently dropped.
+        bridge.saveCall(call);
+        pendingCallId = call.getCallbackId();
 
         int pageLimit = call.getInt("pageLimit", 1);
         boolean galleryImport = call.getBoolean("galleryImport", false);
@@ -53,16 +64,18 @@ public class DocumentScannerPlugin extends Plugin {
                 try {
                     getActivity().startIntentSenderForResult(intentSender, REQ_CODE, null, 0, 0, 0);
                 } catch (IntentSender.SendIntentException e) {
-                    if (pendingCall != null) {
-                        pendingCall.reject("Failed to start scanner: " + e.getMessage());
-                        pendingCall = null;
+                    PluginCall c = currentCall();
+                    if (c != null) {
+                        c.reject("Failed to start scanner: " + e.getMessage());
+                        clearCall();
                     }
                 }
             })
             .addOnFailureListener(e -> {
-                if (pendingCall != null) {
-                    pendingCall.reject("Scanner unavailable: " + e.getMessage());
-                    pendingCall = null;
+                PluginCall c = currentCall();
+                if (c != null) {
+                    c.reject("Scanner unavailable: " + e.getMessage());
+                    clearCall();
                 }
             });
     }
@@ -71,62 +84,180 @@ public class DocumentScannerPlugin extends Plugin {
      * Called from MainActivity.onActivityResult — Capacitor's bridge only routes
      * Activity results for request codes it registered itself, so we dispatch from
      * the host Activity directly into the plugin instance.
+     *
+     * On MIUI / low-memory devices the OS sometimes kills our process while the
+     * ML Kit scanner activity is foregrounded. Android then creates a fresh
+     * process just to deliver the result here — at that point the JS Promise is
+     * gone and pendingCallId is null. We detect that case and persist the
+     * captured bytes to internal storage; JS picks them up via consumePending()
+     * on the next app launch.
      */
     public void handleScanResult(int resultCode, Intent data) {
-        PluginCall call = pendingCall;
-        pendingCall = null;
-        if (call == null) return;
+        PluginCall call = currentCall();
+        boolean haveLiveCall = call != null;
+        if (haveLiveCall) clearCall();
 
         if (resultCode != Activity.RESULT_OK || data == null) {
-            call.reject("cancelled");
+            if (haveLiveCall) call.reject("cancelled");
             return;
         }
 
+        ScanResultPayload payload = decodeAndEnhance(data);
+        if (payload == null) {
+            if (haveLiveCall) call.reject("Failed to read scan result");
+            return;
+        }
+
+        if (haveLiveCall) {
+            call.resolve(buildResultJSObject(payload));
+        } else {
+            // Process-death recovery path: stash bytes on disk so the JS layer
+            // can pick them up after Capacitor and app.js finish booting.
+            try {
+                writePendingPayload(payload);
+            } catch (Throwable t) {
+                // Nothing to surface — JS will simply not see a pending scan.
+            }
+        }
+    }
+
+    /**
+     * JS calls this once on app boot / resume. If a scan completed while the
+     * process was dead, the bytes are returned (and consumed). Otherwise an
+     * empty object is returned so JS can short-circuit cheaply.
+     */
+    @PluginMethod
+    public void consumePending(PluginCall call) {
         try {
-            GmsDocumentScanningResult result = GmsDocumentScanningResult.fromActivityResultIntent(data);
-            if (result == null || result.getPages() == null || result.getPages().isEmpty()) {
-                call.reject("No pages returned");
+            File dir = pendingDir();
+            File img = new File(dir, "pending.jpg");
+            File meta = new File(dir, "pending.meta");
+            if (!img.exists()) {
+                JSObject empty = new JSObject();
+                empty.put("hasPending", false);
+                call.resolve(empty);
                 return;
             }
+
+            byte[] bytes = readAllBytes(img);
+            String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
+
+            float blurScore = 0f, brightness = 128f, contrast = 50f;
+            String warning = null;
+            if (meta.exists()) {
+                String[] parts = new String(readAllBytes(meta)).split("\\|");
+                try {
+                    if (parts.length >= 1) blurScore = Float.parseFloat(parts[0]);
+                    if (parts.length >= 2) brightness = Float.parseFloat(parts[1]);
+                    if (parts.length >= 3) contrast = Float.parseFloat(parts[2]);
+                    if (parts.length >= 4 && !"null".equals(parts[3])) warning = parts[3];
+                } catch (NumberFormatException ignored) {}
+            }
+
+            // Consume — delete files so we don't double-process on next resume.
+            //noinspection ResultOfMethodCallIgnored
+            img.delete();
+            //noinspection ResultOfMethodCallIgnored
+            meta.delete();
+
+            JSObject ret = new JSObject();
+            ret.put("hasPending", true);
+            ret.put("base64", base64);
+            ret.put("format", "jpeg");
+            ret.put("pageCount", 1);
+            ret.put("blurScore", blurScore);
+            ret.put("brightness", brightness);
+            ret.put("contrast", contrast);
+            if (warning != null) ret.put("qualityWarning", warning);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("consumePending failed: " + e.getMessage());
+        }
+    }
+
+    private ScanResultPayload decodeAndEnhance(Intent data) {
+        try {
+            GmsDocumentScanningResult result = GmsDocumentScanningResult.fromActivityResultIntent(data);
+            if (result == null || result.getPages() == null || result.getPages().isEmpty()) return null;
 
             Uri imageUri = result.getPages().get(0).getImageUri();
             Bitmap bmp;
             try (InputStream is = getContext().getContentResolver().openInputStream(imageUri)) {
                 bmp = BitmapFactory.decodeStream(is);
             }
-            if (bmp == null) {
-                call.reject("Failed to decode scanned image");
-                return;
-            }
+            if (bmp == null) return null;
 
-            // Quality assessment runs on the *raw* scanner output (before our enhancement
-            // pass), so we measure what the camera actually captured rather than what we
-            // post-processed.
             Quality quality = assessQuality(bmp);
-
-            // OCR-targeted enhancement: stretches contrast based on the document's actual
-            // histogram (auto-levels), reduces colour cast, then applies a mild contrast
-            // bump. Output is brighter, sharper text-on-paper that OCR handles better.
             Bitmap enhanced = enhanceForOcr(bmp);
             if (enhanced != bmp) bmp.recycle();
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             enhanced.compress(Bitmap.CompressFormat.JPEG, 90, baos);
-            String base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+            byte[] jpeg = baos.toByteArray();
             enhanced.recycle();
 
-            JSObject ret = new JSObject();
-            ret.put("base64", base64);
-            ret.put("format", "jpeg");
-            ret.put("pageCount", result.getPages().size());
-            ret.put("blurScore", quality.blurScore);
-            ret.put("brightness", quality.brightness);
-            ret.put("contrast", quality.contrast);
-            if (quality.warning != null) ret.put("qualityWarning", quality.warning);
-            call.resolve(ret);
+            ScanResultPayload p = new ScanResultPayload();
+            p.jpegBytes = jpeg;
+            p.pageCount = result.getPages().size();
+            p.blurScore = quality.blurScore;
+            p.brightness = quality.brightness;
+            p.contrast = quality.contrast;
+            p.warning = quality.warning;
+            return p;
         } catch (Exception e) {
-            call.reject("Failed to read scan result: " + e.getMessage());
+            return null;
         }
+    }
+
+    private JSObject buildResultJSObject(ScanResultPayload p) {
+        JSObject ret = new JSObject();
+        ret.put("base64", Base64.encodeToString(p.jpegBytes, Base64.NO_WRAP));
+        ret.put("format", "jpeg");
+        ret.put("pageCount", p.pageCount);
+        ret.put("blurScore", p.blurScore);
+        ret.put("brightness", p.brightness);
+        ret.put("contrast", p.contrast);
+        if (p.warning != null) ret.put("qualityWarning", p.warning);
+        return ret;
+    }
+
+    private File pendingDir() {
+        File dir = new File(getContext().getFilesDir(), "scanner");
+        if (!dir.exists()) //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+        return dir;
+    }
+
+    private void writePendingPayload(ScanResultPayload p) throws Exception {
+        File dir = pendingDir();
+        File img = new File(dir, "pending.jpg");
+        File meta = new File(dir, "pending.meta");
+        try (FileOutputStream fos = new FileOutputStream(img)) {
+            fos.write(p.jpegBytes);
+        }
+        String metaStr = p.blurScore + "|" + p.brightness + "|" + p.contrast + "|" + (p.warning == null ? "null" : p.warning);
+        try (FileOutputStream fos = new FileOutputStream(meta)) {
+            fos.write(metaStr.getBytes());
+        }
+    }
+
+    private byte[] readAllBytes(File f) throws Exception {
+        try (FileInputStream fis = new FileInputStream(f)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = fis.read(buf)) > 0) out.write(buf, 0, n);
+            return out.toByteArray();
+        }
+    }
+
+    private static class ScanResultPayload {
+        byte[] jpegBytes;
+        int pageCount;
+        float blurScore;
+        float brightness;
+        float contrast;
+        String warning;
     }
 
     /**
@@ -287,5 +418,17 @@ public class DocumentScannerPlugin extends Plugin {
         float brightness = 128f;
         float contrast = 50f;
         String warning = null;
+    }
+
+    private PluginCall currentCall() {
+        if (pendingCallId == null) return null;
+        return bridge.getSavedCall(pendingCallId);
+    }
+
+    private void clearCall() {
+        if (pendingCallId != null) {
+            bridge.releaseCall(pendingCallId);
+            pendingCallId = null;
+        }
     }
 }

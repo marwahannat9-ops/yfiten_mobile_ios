@@ -12,6 +12,9 @@ import { App as CapApp } from "@capacitor/app";
 import QRCode from "qrcode";
 
 const API_BASE_URL = "https://yfiten.com";
+// Google OAuth client ID for the browser-based mobile sign-in flow.
+// Must match what the *production backend at API_BASE_URL* uses (not the
+// local-dev .env.local — the prod server can have a different client ID).
 const GOOGLE_WEB_CLIENT_ID = "525382726794-0qr41as45jera60gee9ar63ceimhkkhi.apps.googleusercontent.com";
 
 const STORAGE_KEYS = {
@@ -115,14 +118,29 @@ async function apiFetch(path, options = {}) {
    ============================================================ */
 
 function escapeHtml(str) {
-  const d = document.createElement("div");
-  d.textContent = str;
-  return d.innerHTML;
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatDate(d) {
   if (!d) return "-";
   return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+// True when a transaction is outgoing money (debit/sortie). The API ships
+// `direction` as "in"|"out"; some legacy code paths use "debit"|"credit"; and
+// some payloads only carry a signed amountCents. Accept all three.
+function isDebitTx(tx) {
+  if (!tx) return false;
+  const d = String(tx.direction || "").toLowerCase();
+  if (d === "out" || d === "debit") return true;
+  if (d === "in" || d === "credit") return false;
+  return Number(tx.amountCents ?? tx.amount ?? 0) < 0;
 }
 
 function formatAmount(cents, currency = "MAD") {
@@ -263,7 +281,7 @@ function switchDirTab(tabName) {
     invoices: "entrees", quotes: "entrees", clients: "entrees", products: "entrees",
     "invoice-new": "entrees", "quote-new": "entrees", "client-new": "entrees", "product-new": "entrees", "invoice-detail": "entrees", "quote-detail": "entrees",
     tickets: "sorties", "supplier-invoices": "sorties", "expense-notes": "sorties", suppliers: "sorties",
-    "ticket-detail": "sorties",
+    "ticket-detail": "sorties", "supplier-invoice-detail": "sorties",
     collaborators: "more", "payslips-manage": "more", "leaves-manage": "more",
     treasury: "more", "tva-report": "more", "tax-declarations": "more",
     legal: "more", collecte: "more", messages: "more", settings: "more", notifications: "dashboard",
@@ -311,14 +329,57 @@ function switchDirTab(tabName) {
   if (tabName === "collecte") loadCollecte();
 }
 
-async function enterApp() {
-  await loadOrganizations();
+// Full-screen auth-loading overlay helpers. Shown during sign-in flows
+// (email/password and Google deeplink return) so the user never sees the
+// login form return silently after a successful authentication.
+function showAuthLoading(message) {
+  const el = document.getElementById("auth-loading");
+  const txt = document.getElementById("auth-loading-text");
+  if (!el) return;
+  if (txt) {
+    if (message === "" || message == null) {
+      // Empty message → spinner only, no caption. Used by the cold-boot
+      // cover so we don't show a stale "Connexion en cours…" or any text.
+      txt.textContent = "";
+      txt.style.display = "none";
+    } else {
+      txt.textContent = message;
+      txt.style.display = "";
+    }
+  }
+  el.style.display = "flex";
+  el.setAttribute("aria-hidden", "false");
+}
+function hideAuthLoading() {
+  const el = document.getElementById("auth-loading");
+  if (!el) return;
+  el.style.display = "none";
+  el.setAttribute("aria-hidden", "true");
+}
+window.showAuthLoading = showAuthLoading;
+window.hideAuthLoading = hideAuthLoading;
+
+async function enterApp({ silent = false } = {}) {
+  // Make the loading overlay visible across the entire transition: it
+  // covers the login form -> dashboard handoff so the user never sees a
+  // flash of the login screen post-auth. We skip it when {silent:true},
+  // e.g. on the post-process-death scan recovery path where the
+  // scan-modal already covers the screen with its own analysis state.
+  if (!silent) showAuthLoading("Préparation de votre espace…");
+  try {
+    await loadOrganizations();
+  } catch (_) {}
   if (state.organizations.length > 0 && !state.orgId) {
-    await saveOrgId(state.organizations[0]._id || state.organizations[0].id);
+    try { await saveOrgId(state.organizations[0]._id || state.organizations[0].id); } catch (_) {}
   }
 
   showScreen("screen-dirigeant");
   initDirigeantScreen();
+  if (!silent) {
+    // Hide on next frame so the dashboard finishes painting first — avoids
+    // a brief flash of the welcome screen behind the overlay.
+    requestAnimationFrame(() => hideAuthLoading());
+  }
   initNotificationSystem().then(() => startNotificationPolling());
 }
 
@@ -365,6 +426,10 @@ async function doGoogleLogin() {
     });
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
+    // Show the loading overlay so the moment the user closes / completes
+    // the Google custom tab, they see "Connexion en cours" — never the
+    // empty login screen behind the closing custom tab.
+    showAuthLoading("Connexion via Google…");
     await Browser.open({ url: authUrl, presentationStyle: "fullscreen" });
   } catch (err) {
     console.error("Google login error:", err?.message || err);
@@ -387,13 +452,20 @@ function parseYfitenAuthUrl(url) {
   };
 }
 
+let _lastHandledDeepLinkUrl = null;
 async function handleGoogleDeepLink(url) {
+  if (!url || url === _lastHandledDeepLinkUrl) return;
+  _lastHandledDeepLinkUrl = url;
   console.log("DEEPLINK received:", url);
   const parsed = parseYfitenAuthUrl(url);
   if (!parsed) {
     console.warn("DEEPLINK not matched:", url);
+    hideAuthLoading();
     return;
   }
+  // Keep the overlay visible across the deeplink → token-save → enterApp
+  // transition so the user never blinks back to the welcome screen.
+  showAuthLoading("Finalisation de la connexion…");
   console.log("DEEPLINK parsed:", { hasToken: !!parsed.token, error: parsed.error });
 
   try { await Browser.close(); } catch (_) {}
@@ -401,6 +473,7 @@ async function handleGoogleDeepLink(url) {
   try {
     const errorDiv = document.getElementById("login-error");
     if (parsed.error) {
+      hideAuthLoading();
       if (errorDiv) {
         errorDiv.querySelector("span").textContent = parsed.error;
         errorDiv.style.display = "flex";
@@ -408,7 +481,7 @@ async function handleGoogleDeepLink(url) {
       return;
     }
 
-    if (!parsed.token) return;
+    if (!parsed.token) { hideAuthLoading(); return; }
 
     await saveToken(parsed.token);
     if (parsed.user) {
@@ -416,6 +489,7 @@ async function handleGoogleDeepLink(url) {
     }
     await enterApp();
   } catch (err) {
+    hideAuthLoading();
     console.error("DEEPLINK handler error:", err?.message || err);
   }
 }
@@ -479,6 +553,7 @@ async function doLogin(email, password) {
   btnLoader.style.display = "inline-block";
   loginBtn.disabled = true;
   errorDiv.style.display = "none";
+  showAuthLoading("Connexion en cours…");
 
   try {
     const res = await CapacitorHttp.post({
@@ -490,13 +565,15 @@ async function doLogin(email, password) {
     if (res.status === 200 && res.data?.token) {
       await saveToken(res.data.token);
       await saveUser(res.data.user || { email });
-      await enterApp();
+      await enterApp();   // hides the overlay itself once the dashboard mounts
     } else {
+      hideAuthLoading();
       const msg = res.data?.error || res.data?.message || "Identifiants incorrects";
       errorDiv.querySelector("span").textContent = msg;
       errorDiv.style.display = "flex";
     }
   } catch (err) {
+    hideAuthLoading();
     errorDiv.querySelector("span").textContent = "Erreur de connexion";
     errorDiv.style.display = "flex";
   } finally {
@@ -567,13 +644,21 @@ async function loadDirDashboard() {
   };
 
   let revenueCents = 0;
-  let expensesCents = 0;
+  let ticketsExpensesCents = 0;
+  let supplierExpensesCents = 0;
   let pendingCount = 0;
 
-  const refreshNet = () => {
-    const netCents = revenueCents - expensesCents;
+  const refreshExpensesUI = () => {
+    const totalExpenses = ticketsExpensesCents + supplierExpensesCents;
+    setKpi("kpi-expenses", `−${formatAmount(totalExpenses)}`);
+    setKpi("cat-sorties-expenses", formatAmount(totalExpenses));
+    const netCents = revenueCents - totalExpenses;
     const sign = netCents >= 0 ? "+" : "−";
     setKpi("mc-net", `${sign}${formatAmount(Math.abs(netCents))}`);
+  };
+
+  const refreshNet = () => {
+    refreshExpensesUI();
     const todo = pendingCount;
     setKpi("mc-todo-count", String(todo));
     setKpi("mc-pending-sub", todo === 0 ? "Aucune facture en attente" : (todo === 1 ? "1 facture en attente" : `${todo} factures en attente`));
@@ -582,32 +667,49 @@ async function loadDirDashboard() {
   // Load KPIs in parallel
   const promises = [];
 
-  // Revenue (client invoices total)
+  // Revenue — only count invoices that are actually paid. Brouillon (draft) and
+  // À encaisser (to be collected) are NOT realized money yet, so excluding them
+  // keeps the accounting safe (you don't book revenue you haven't received).
   promises.push(
     apiFetch(`/api/client-invoices?organizationId=${state.orgId}`).then(res => {
       if (res.ok) {
         const invoices = res.data?.invoices || [];
-        const total = invoices.reduce((sum, inv) => sum + (inv.amountCents || 0), 0);
-        revenueCents = total;
-        setKpi("kpi-revenue", `+${formatAmount(total)}`);
-        setKpi("cat-entrees-revenue", formatAmount(total));
+        const paidTotal = invoices
+          .filter(inv => inv.status === "Payée" || inv.status === "Payee")
+          .reduce((sum, inv) => sum + (inv.amountCents || 0), 0);
+        revenueCents = paidTotal;
+        setKpi("kpi-revenue", `+${formatAmount(paidTotal)}`);
+        setKpi("cat-entrees-revenue", formatAmount(paidTotal));
         setKpi("cat-entrees-invoices-sub", invoices.length === 1 ? "1 facture" : `${invoices.length} factures`);
         refreshNet();
       }
     }).catch(() => {})
   );
 
-  // Expenses (tickets) — also drives the documents count
+  // Tickets contribute to expenses + drive the documents count
   promises.push(
     apiFetch(`/api/tickets?organizationId=${state.orgId}`).then(res => {
       if (res.ok) {
         const tickets = res.data?.tickets || (Array.isArray(res.data) ? res.data : []);
-        const total = tickets.reduce((sum, t) => sum + (t.amountCents || 0), 0);
-        expensesCents = total;
-        setKpi("kpi-expenses", `−${formatAmount(total)}`);
+        ticketsExpensesCents = tickets.reduce((sum, t) => sum + (t.amountCents || 0), 0);
         setKpi("kpi-documents", String(tickets.length));
-        setKpi("cat-sorties-expenses", formatAmount(total));
         setKpi("cat-sorties-tickets", String(tickets.length));
+        refreshExpensesUI();
+        refreshNet();
+      }
+    }).catch(() => {})
+  );
+
+  // Supplier invoices ARE expenses — count every one of them, regardless of
+  // payment status. An unpaid supplier bill is still a committed expense; the
+  // safe-accounting filter only applies to revenue (don't count unrealized
+  // client invoices), not to expenses.
+  promises.push(
+    apiFetch(`/api/supplier-invoices?organizationId=${state.orgId}`).then(res => {
+      if (res.ok) {
+        const invoices = res.data?.invoices || res.data?.supplierInvoices || [];
+        supplierExpensesCents = invoices.reduce((sum, i) => sum + (i.amountCents || 0), 0);
+        refreshExpensesUI();
         refreshNet();
       }
     }).catch(() => {})
@@ -777,55 +879,1820 @@ async function loadBankAccountsOnly() {
   }
 }
 
+/**
+ * Transaction Justificatifs modal — pro layout inspired by the webapp's
+ * ReceiptsMenu. Shows the transaction summary, an optional matched-invoice
+ * card, the list of attached documents with per-row actions (view, share,
+ * delete) and a primary "Ajouter un justificatif" CTA.
+ *
+ * `tx` shape: { id, amount, description, direction, date, receipts:[], matchedInvoice? }
+ */
+let _txDocsCurrent = null;
+const _txDocsThumbCache = new Map();
+
+function _txDocsIsImage(r) {
+  return (r?.contentType || "").startsWith("image/")
+    || /\.(jpe?g|png|gif|webp|bmp|tiff)$/i.test(r?.fileName || "");
+}
+
+/* ============================================================
+   Per-receipt OCR cache. Bridges the gap until the webapp persists
+   `Transaction.receipts[].extracted` server-side. We store every
+   extraction the phone produces (keyed by the server's receipt fileId)
+   in localStorage so the data survives a session — and merge it back
+   into receipts on every read. Once the webapp is deployed and starts
+   returning `extracted` in the API response, that takes precedence.
+   ============================================================ */
+const _LOCAL_OCR_KEY = "yfiten:receiptOcr:v1";
+let _localReceiptOcrCache = null;
+
+function _loadLocalReceiptOcrCache() {
+  if (_localReceiptOcrCache) return _localReceiptOcrCache;
+  _localReceiptOcrCache = {};
+  try {
+    const raw = localStorage.getItem(_LOCAL_OCR_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") _localReceiptOcrCache = parsed;
+    }
+  } catch (_) {}
+  return _localReceiptOcrCache;
+}
+
+function _persistLocalReceiptOcrCache() {
+  try {
+    localStorage.setItem(_LOCAL_OCR_KEY, JSON.stringify(_localReceiptOcrCache || {}));
+  } catch (_) {}
+}
+
+function _setLocalReceiptOcr(fileId, extracted) {
+  if (!fileId || !extracted) return;
+  const cache = _loadLocalReceiptOcrCache();
+  cache[String(fileId)] = extracted;
+  _persistLocalReceiptOcrCache();
+}
+
+function _getLocalReceiptOcr(fileId) {
+  if (!fileId) return null;
+  const cache = _loadLocalReceiptOcrCache();
+  return cache[String(fileId)] || null;
+}
+
+function _txDocsExt(r) {
+  const name = (r?.fileName || "").toLowerCase();
+  const m = name.match(/\.([a-z0-9]{1,5})$/);
+  if (m) return m[1].toUpperCase();
+  const ct = r?.contentType || "";
+  if (/pdf/i.test(ct)) return "PDF";
+  if (/jpeg/i.test(ct)) return "JPG";
+  if (/png/i.test(ct)) return "PNG";
+  if (/webp/i.test(ct)) return "WEBP";
+  if (/gif/i.test(ct)) return "GIF";
+  if (ct) return ct.split("/").pop().slice(0, 4).toUpperCase();
+  return "DOC";
+}
+
+function _txDocsIsPdf(r) {
+  return (r?.contentType || "").includes("pdf") || /\.pdf$/i.test(r?.fileName || "");
+}
+
+function _txDocsBadge(r) {
+  const ext = _txDocsExt(r);
+  if (_txDocsIsImage(r)) {
+    return `<div class="tx-docs-thumb-badge tx-docs-thumb-badge-img"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>`;
+  }
+  if (_txDocsIsPdf(r)) {
+    return `<div class="tx-docs-thumb-badge tx-docs-thumb-badge-pdf"><span class="tx-docs-thumb-ext">PDF</span></div>`;
+  }
+  return `<div class="tx-docs-thumb-badge tx-docs-thumb-badge-doc"><span class="tx-docs-thumb-ext">${escapeHtml(ext)}</span></div>`;
+}
+
+function _txDocsContentTypeLabel(r) {
+  if (_txDocsIsImage(r)) return "Image";
+  if (_txDocsIsPdf(r)) return "PDF";
+  const ct = r?.contentType || "";
+  if (ct) return ct.split("/").pop().toUpperCase();
+  return "Document";
+}
+
+const _MATCHED_TYPE_META = {
+  client_invoice:   { label: "Facture client",      icon: "FILE_TEXT", tone: "blue" },
+  supplier_invoice: { label: "Facture fournisseur", icon: "FILE_TEXT", tone: "violet" },
+  ticket:           { label: "Reçu / Ticket",       icon: "RECEIPT",   tone: "amber" },
+  payslip:          { label: "Bulletin de paie",    icon: "FILE_TEXT", tone: "emerald" },
+  expense:          { label: "Note de frais",       icon: "RECEIPT",   tone: "slate"  },
+  bon_commande:     { label: "Bon de commande",     icon: "FILE_TEXT", tone: "indigo" },
+};
+
+function _matchedItemIconSvg(kind) {
+  if (kind === "RECEIPT") {
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-2-2-2 2V2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>`;
+  }
+  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+}
+
+/**
+ * Renders the per-transaction "wallet" — a card at the top of the docs
+ * modal showing how much of the transaction amount has already been
+ * justified (sum of matched documents) and how much is still to approve.
+ * Designed to feel like a digital wallet: large amounts, clear progress.
+ */
+/**
+ * Single source of truth for "what data do we know about the receipt at
+ * index `idx`". Both the per-card renderer (_renderTxDocsList) and the
+ * wallet aggregate (_renderTxDocsWallet) call this so they never disagree.
+ *
+ * Source priority (per-doc only — never the transaction's own data):
+ *  1) The receipt's own `extracted` field (persisted in MongoDB on
+ *     `Transaction.receipts[].extracted` at upload time). This is the
+ *     authoritative per-doc OCR result.
+ *  2) The receipt's positionally matched Ticket
+ *     (`matchedItems[type=ticket][idx]`) for legacy receipts that don't
+ *     yet have a stored extracted blob.
+ *
+ *  Returns { ticket, extracted, merchant, amountCents, htCents, tvaRate }.
+ */
+function _getReceiptDocData(idx, tx) {
+  const receipts = Array.isArray(tx?.receipts) ? tx.receipts : [];
+  const receipt = receipts[idx] || null;
+  const matchedItems = (Array.isArray(tx?.matchedItems) ? tx.matchedItems : [])
+    .filter(it => it && it.type === "ticket");
+  const ticket = matchedItems[idx] || null;
+  // Per-doc OCR: prefer what the API returned, fall back to the local
+  // cache (keyed by receipt fileId) for receipts attached before the
+  // server learned to persist `extracted`.
+  let ext = receipt?.extracted || null;
+  if (!ext && receipt?.fileId) {
+    ext = _getLocalReceiptOcr(receipt.fileId);
+  }
+
+  // Default empty result.
+  let merchant = "";
+  let amountCents = null;
+  let htCents = null;
+  let tvaRateNum = null;
+
+  // 1) Persisted per-receipt OCR (the user-facing source of truth).
+  if (ext) {
+    merchant = ext.classifier?.merchant_name
+      || ext.beneficiaire
+      || ext.emetteur
+      || "";
+    if (ext.montant_ttc != null) {
+      amountCents = Math.round(Number(ext.montant_ttc) * 100);
+    }
+    if (ext.montant_ht != null) {
+      htCents = Math.round(Number(ext.montant_ht) * 100);
+    }
+    // taux_tva can be a number or the API's bracket array.
+    if (Array.isArray(ext.taux_tva)) {
+      // Use the first bracket's rate as representative; the viewer panel
+      // still lists every bracket separately.
+      const first = ext.taux_tva[0];
+      if (first && first.taux != null) {
+        const r = typeof first.taux === "string"
+          ? Number(String(first.taux).replace(/[^\d.]/g, ""))
+          : Number(first.taux);
+        if (Number.isFinite(r)) tvaRateNum = r;
+      }
+      // Fill TTC from the per-bracket sum when not given outright.
+      if (amountCents == null) {
+        let totalTtc = 0;
+        for (const r of ext.taux_tva) {
+          if (r && r.montant_ttc != null) totalTtc += Number(r.montant_ttc);
+        }
+        if (totalTtc > 0) amountCents = Math.round(totalTtc * 100);
+      }
+    } else if (ext.taux_tva != null) {
+      const r = Number(ext.taux_tva);
+      if (Number.isFinite(r)) tvaRateNum = r;
+    }
+    // TTC = HT × (1 + rate) when only the inputs are known.
+    if (amountCents == null && htCents != null && tvaRateNum != null) {
+      amountCents = Math.round(htCents * (1 + tvaRateNum / 100));
+    }
+  }
+
+  // 2) Matched-ticket fallback for receipts uploaded before per-doc OCR
+  //    persistence existed.
+  if (ticket) {
+    if (!merchant) merchant = ticket.counterpartyName || "";
+    if (amountCents == null && ticket.amountCents != null) {
+      amountCents = Math.abs(Number(ticket.amountCents));
+    }
+    if (htCents == null && ticket.htCents != null) {
+      htCents = Math.abs(Number(ticket.htCents));
+    }
+    if (tvaRateNum == null && ticket.tvaRate != null) {
+      tvaRateNum = Number(ticket.tvaRate);
+    }
+    if (amountCents == null && htCents != null && tvaRateNum != null) {
+      amountCents = Math.round(htCents * (1 + tvaRateNum / 100));
+    }
+  }
+
+  return { ticket, extracted: ext, merchant, amountCents, htCents, tvaRate: tvaRateNum };
+}
+
+function _renderTxDocsWallet(tx) {
+  const slot = document.getElementById("tx-docs-wallet");
+  if (!slot) return;
+  if (!tx) { slot.innerHTML = ""; return; }
+
+  const txAmountCents = Number(tx.amount ?? 0);
+  if (txAmountCents <= 0) { slot.innerHTML = ""; return; }
+
+  // The user-facing list of justificatifs is `tx.receipts[]`. We sum each
+  // doc's amount via _getReceiptDocData — strictly the per-Ticket OCR
+  // amount, never derived from tx-wide data.
+  const receipts = Array.isArray(tx.receipts) ? tx.receipts : [];
+  const docCount = receipts.length;
+
+  let approvedCents = 0;
+  let knownDocs = 0;
+  let unknownDocs = 0;
+  for (let i = 0; i < receipts.length; i++) {
+    const { amountCents } = _getReceiptDocData(i, tx);
+    if (amountCents == null || amountCents <= 0) {
+      unknownDocs++;
+      continue;
+    }
+    approvedCents += amountCents;
+    knownDocs++;
+  }
+
+  // The wallet never claims "complete" without proof: completion requires
+  // (a) every doc has a known amount and (b) the sum covers the tx within
+  // a 1 MAD rounding tolerance.
+  const remainingCents = Math.max(0, txAmountCents - approvedCents);
+  const ratio = txAmountCents > 0 ? Math.min(1, approvedCents / txAmountCents) : 0;
+  const pct = Math.round(ratio * 100);
+  const isEmpty = docCount === 0;
+  const isComplete = !isEmpty && unknownDocs === 0 && approvedCents >= txAmountCents - 100;
+  const isPartial = !isEmpty && !isComplete;
+  const stateClass = isComplete
+    ? "tx-docs-wallet-complete"
+    : isPartial
+      ? "tx-docs-wallet-partial"
+      : "tx-docs-wallet-empty";
+
+  const docCountLabel = `${docCount} doc${docCount > 1 ? "s" : ""}`;
+  let footerHtml;
+  if (isEmpty) {
+    footerHtml = "Aucun justificatif rapproché";
+  } else if (isComplete) {
+    footerHtml = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Transaction entièrement justifiée`;
+  } else if (unknownDocs > 0 && knownDocs === 0) {
+    // We have docs but no extracted amount for any of them — be honest.
+    footerHtml = `${docCount} doc${docCount > 1 ? "s" : ""} en attente d'analyse`;
+  } else if (unknownDocs > 0) {
+    footerHtml = `${pct}% rapproché · ${unknownDocs} doc${unknownDocs > 1 ? "s" : ""} sans montant`;
+  } else {
+    footerHtml = `${pct}% rapproché`;
+  }
+
+  slot.innerHTML = `
+    <div class="tx-docs-wallet ${stateClass}">
+      <div class="tx-docs-wallet-row">
+        <div class="tx-docs-wallet-col">
+          <div class="tx-docs-wallet-label">Rapproché</div>
+          <div class="tx-docs-wallet-amount">${escapeHtml(formatAmount(approvedCents))}</div>
+          <div class="tx-docs-wallet-sub">${escapeHtml(docCountLabel)}</div>
+        </div>
+        <div class="tx-docs-wallet-divider"></div>
+        <div class="tx-docs-wallet-col tx-docs-wallet-col-right">
+          <div class="tx-docs-wallet-label">${isComplete ? "Total" : "Restant"}</div>
+          <div class="tx-docs-wallet-amount">${escapeHtml(formatAmount(isComplete ? txAmountCents : remainingCents))}</div>
+          <div class="tx-docs-wallet-sub">${escapeHtml(formatAmount(txAmountCents))} au total</div>
+        </div>
+      </div>
+      <div class="tx-docs-wallet-bar">
+        <div class="tx-docs-wallet-bar-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="tx-docs-wallet-foot">${footerHtml}</div>
+    </div>`;
+}
+
+function _renderTxDocsMatchedItems(items) {
+  const arr = Array.isArray(items) ? items.filter(it => it && it.pdfUrl) : [];
+  // Find or create a slot so we can re-render after deletes.
+  let slot = document.getElementById("tx-docs-matched-items");
+  if (!slot) {
+    const list = document.getElementById("tx-docs-list");
+    if (!list) return;
+    slot = document.createElement("div");
+    slot.id = "tx-docs-matched-items";
+    list.parentNode.insertBefore(slot, list);
+  }
+  if (arr.length === 0) { slot.innerHTML = ""; return; }
+
+  const header = `<div class="tx-docs-section-title">
+    <span class="tx-docs-section-title-text">Documents rapprochés</span>
+    <span class="tx-docs-count-badge">${arr.length}</span>
+  </div>`;
+
+  const rows = arr.map(it => {
+    const meta = _MATCHED_TYPE_META[it.type] || { label: "Document", icon: "FILE_TEXT", tone: "slate" };
+    const subParts = [];
+    if (it.ref) subParts.push(it.ref);
+    if (it.counterpartyName) subParts.push(it.counterpartyName);
+    if (it.amountCents != null) subParts.push(formatAmount(Math.abs(Number(it.amountCents))));
+    const sub = subParts.join(" · ");
+    return `<div class="tx-docs-matched-item tx-docs-matched-tone-${meta.tone}"
+      data-tx-matched-type="${escapeHtml(it.type || "")}"
+      data-tx-matched-id="${escapeHtml(String(it.id || ""))}"
+      data-tx-matched-pdf-url="${escapeHtml(String(it.pdfUrl || ""))}"
+      data-tx-matched-label="${escapeHtml(it.label || meta.label)}">
+      <div class="tx-docs-matched-thumb">${_matchedItemIconSvg(meta.icon)}</div>
+      <div class="tx-docs-matched-body">
+        <div class="tx-docs-matched-title">${escapeHtml(it.label || meta.label)}</div>
+        <div class="tx-docs-matched-meta">
+          <span class="tx-docs-matched-pill">${escapeHtml(meta.label)}</span>
+          ${sub ? `<span class="tx-docs-matched-sub">${escapeHtml(sub)}</span>` : ""}
+        </div>
+      </div>
+      <svg class="tx-docs-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    </div>`;
+  }).join("");
+
+  slot.innerHTML = `${header}<div class="tx-docs-matched-list">${rows}</div>`;
+}
+
+function _renderTxDocsMatched(matchedInvoice) {
+  const slot = document.getElementById("tx-docs-matched");
+  if (!slot) return;
+  if (!matchedInvoice || !matchedInvoice.ref) {
+    slot.innerHTML = "";
+    return;
+  }
+  const ref = escapeHtml(String(matchedInvoice.ref));
+  const client = matchedInvoice.clientName ? escapeHtml(String(matchedInvoice.clientName)) : "";
+  const amount = matchedInvoice.totalTtcCents != null
+    ? formatAmount(Math.abs(Number(matchedInvoice.totalTtcCents)))
+    : "";
+  const pdfUrl = matchedInvoice.pdfUrl ? escapeHtml(String(matchedInvoice.pdfUrl)) : "";
+  slot.innerHTML = `
+    <div class="tx-docs-section-title">Facture associée</div>
+    <div class="tx-docs-matched-card" ${pdfUrl ? `data-tx-matched-pdf="${pdfUrl}"` : ""}>
+      <div class="tx-docs-matched-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h6"/></svg>
+      </div>
+      <div class="tx-docs-matched-info">
+        <div class="tx-docs-matched-ref">${ref}</div>
+        <div class="tx-docs-matched-sub">${client}${client && amount ? " · " : ""}${amount}</div>
+      </div>
+      ${pdfUrl ? `<svg class="tx-docs-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>` : ""}
+    </div>`;
+}
+
+function openTransactionDocsModal(tx) {
+  _txDocsCurrent = tx;
+  const modal = document.getElementById("tx-docs-modal");
+  if (!modal) return;
+
+  const summary = document.getElementById("tx-docs-summary");
+  const isDebit = isDebitTx(tx);
+  const sign = isDebit ? "−" : "+";
+  const amountClass = isDebit ? "amount-negative" : "amount-positive";
+  summary.innerHTML = `
+    <div class="tx-docs-summary-merchant">${escapeHtml(tx.description || "Transaction")}</div>
+    <div class="tx-docs-summary-row">
+      <span class="tx-docs-summary-amount ${amountClass}">${sign}${formatAmount(Math.abs(tx.amount))}</span>
+      ${tx.date ? `<span class="tx-docs-summary-date">${escapeHtml(formatDate(tx.date))}</span>` : ""}
+    </div>`;
+
+  _renderTxDocsWallet(tx);
+  _renderTxDocsMatched(tx.matchedInvoice);
+  _renderTxDocsMatchedItems(tx.matchedItems);
+  _renderTxDocsList(tx.receipts);
+
+  const addLabel = document.getElementById("tx-docs-add-label");
+  const receipts = Array.isArray(tx.receipts) ? tx.receipts : [];
+  if (addLabel) {
+    addLabel.textContent = receipts.length > 0 ? "Ajouter un autre justificatif" : "Ajouter un justificatif";
+  }
+
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+
+function _renderTxDocsList(receipts) {
+  const list = document.getElementById("tx-docs-list");
+  const countEl = document.getElementById("tx-docs-count");
+  if (!list || !countEl) return;
+  const arr = Array.isArray(receipts) ? receipts : [];
+
+  countEl.innerHTML = arr.length === 0
+    ? `<span class="tx-docs-section-title-text">Justificatifs</span>`
+    : `<span class="tx-docs-section-title-text">Justificatifs</span><span class="tx-docs-count-badge">${arr.length}</span>`;
+
+  if (arr.length === 0) {
+    list.innerHTML = `<div class="tx-docs-empty">
+      <div class="tx-docs-empty-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      </div>
+      <p class="tx-docs-empty-title">Aucun justificatif</p>
+      <p class="tx-docs-empty-sub">Ajoutez une photo ou un PDF pour justifier cette transaction.</p>
+    </div>`;
+    return;
+  }
+
+  // The card displays *document* data, never transaction data.
+  //  - Title: the merchant from OCR / classifier (e.g. "McDonald's") or
+  //           a fallback type label ("Reçu" / "PDF").
+  //  - Subtitle: the document's TTC amount as extracted by OCR (matched
+  //              ticket's amountCents, or extracted.montant_ht * (1+tva)).
+  // Each receipt may have an associated Ticket among matchedItems (created
+  // by /api/tickets/mobile when the doc was attached). We pair them in
+  // upload order — first receipt with first ticket, etc. — which is the
+  // common case.
+  list.innerHTML = arr.map((r, idx) => {
+    const fileId = r.fileId ? String(r.fileId) : "";
+    const isPdf = _txDocsIsPdf(r);
+    const isImage = _txDocsIsImage(r);
+    const fallbackKind = isPdf ? "PDF" : (isImage ? "Reçu" : "Document");
+
+    // Single source of truth — keeps card display and wallet sum in sync.
+    const docData = _getReceiptDocData(idx, _txDocsCurrent);
+    const ticketItem = docData.ticket;
+    const merchant = docData.merchant;
+    const docAmountCents = docData.amountCents;
+
+    // Title: the document's type label, optionally numbered when the user
+    // has multiple receipts on the same transaction.
+    const typeLabel = ticketItem
+      ? (_MATCHED_TYPE_META[ticketItem.type]?.label || "Document")
+      : fallbackKind;
+    const title = arr.length > 1 ? `${typeLabel} ${idx + 1}` : typeLabel;
+
+    // Subtitle: amount + merchant when known.
+    const amountStr = docAmountCents != null ? formatAmount(docAmountCents) : "";
+    const subtitle = [amountStr, merchant].filter(Boolean).join(" · ") || "À analyser";
+
+    const ct = escapeHtml(r.contentType || "");
+    const fname = escapeHtml(r.fileName || "");
+    return `<div class="tx-docs-item" data-tx-doc-fileid="${escapeHtml(fileId)}">
+      <button class="tx-docs-item-tap" type="button" data-tx-doc-action="view" data-tx-doc-id="${escapeHtml(fileId)}" data-tx-doc-name="${fname}" data-tx-doc-ct="${ct}" aria-label="Ouvrir ${escapeHtml(title)}">
+        <div class="tx-docs-thumb" id="tx-docs-thumb-${idx}">
+          ${_txDocsBadge(r)}
+        </div>
+        <div class="tx-docs-info">
+          <div class="tx-docs-name">${escapeHtml(title)}</div>
+          <div class="tx-docs-sub">${escapeHtml(subtitle)}</div>
+        </div>
+      </button>
+      <div class="tx-docs-actions">
+        <button class="tx-docs-action" type="button" data-tx-doc-action="view" data-tx-doc-id="${escapeHtml(fileId)}" data-tx-doc-name="${fname}" data-tx-doc-ct="${ct}" aria-label="Ouvrir">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <button class="tx-docs-action" type="button" data-tx-doc-action="share" data-tx-doc-id="${escapeHtml(fileId)}" data-tx-doc-name="${fname}" data-tx-doc-ct="${ct}" aria-label="Partager">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
+        <button class="tx-docs-action tx-docs-action-danger" type="button" data-tx-doc-action="delete" data-tx-doc-id="${escapeHtml(fileId)}" aria-label="Supprimer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join("");
+
+  // Lazy-load thumbnails (authenticated blob fetch) for image types only. PDFs
+  // and other docs keep their colored badge so the card is always meaningful.
+  arr.forEach((r, idx) => {
+    const fileId = r.fileId ? String(r.fileId) : "";
+    if (!fileId || !_txDocsIsImage(r)) return;
+    const thumbEl = document.getElementById(`tx-docs-thumb-${idx}`);
+    if (!thumbEl) return;
+    const cachedUrl = _getCachedBlobUrl(`id:${fileId}`);
+    if (cachedUrl) {
+      thumbEl.innerHTML = `<img src="${cachedUrl}" alt="" />`;
+      return;
+    }
+    fetchAuthenticatedImage(`/api/receipts/${fileId}`).then(url => {
+      if (url) {
+        _txDocsThumbCache.set(`id:${fileId}`, { url, type: r.contentType || "image/jpeg" });
+        const el = document.getElementById(`tx-docs-thumb-${idx}`);
+        if (el) el.innerHTML = `<img src="${url}" alt="" />`;
+      }
+    }).catch(() => {});
+  });
+}
+
+function _getCachedBlobUrl(key) {
+  const v = _txDocsThumbCache.get(key);
+  if (!v) return null;
+  return typeof v === "string" ? v : v.url || null;
+}
+
+async function shareTransactionDoc(fileId, label) {
+  if (!fileId) return;
+  let url = _getCachedBlobUrl(`id:${fileId}`);
+  if (!url) {
+    url = await fetchAuthenticatedImage(`/api/receipts/${fileId}`);
+    if (url) _txDocsThumbCache.set(`id:${fileId}`, { url, type: "" });
+  }
+  if (!url) { showToast("Impossible de partager"); return; }
+  try {
+    await Share.share({
+      title: label || "Justificatif",
+      url,
+      dialogTitle: "Partager le justificatif",
+    });
+  } catch (e) {
+    const msg = String(e?.message || e || "");
+    if (msg && !/cancel/i.test(msg)) showToast("Partage indisponible");
+  }
+}
+
+async function deleteTransactionReceipt(fileId) {
+  if (!fileId || !_txDocsCurrent) return;
+  if (!confirm("Supprimer ce justificatif ?")) return;
+  try {
+    const res = await apiFetch(`/api/receipts/${fileId}`, { method: "DELETE" });
+    if (!res.ok) {
+      showToast(res.data?.error || "Suppression impossible");
+      return;
+    }
+    // Drop from local state and re-render the list in place.
+    const next = (Array.isArray(_txDocsCurrent.receipts) ? _txDocsCurrent.receipts : [])
+      .filter(r => String(r.fileId) !== String(fileId));
+    _txDocsCurrent.receipts = next;
+    _txDocsThumbCache.delete(fileId);
+    // Drop the local OCR cache entry so we don't keep stale data around.
+    try {
+      const cache = _loadLocalReceiptOcrCache();
+      if (cache[String(fileId)]) {
+        delete cache[String(fileId)];
+        _persistLocalReceiptOcrCache();
+      }
+    } catch (_) {}
+    _renderTxDocsList(next);
+    _renderTxDocsWallet(_txDocsCurrent);
+    const addLabel = document.getElementById("tx-docs-add-label");
+    if (addLabel) {
+      addLabel.textContent = next.length > 0 ? "Ajouter un autre justificatif" : "Ajouter un justificatif";
+    }
+    showToast("Justificatif supprimé");
+    // Refresh the underlying transactions list so the row pill flips back.
+    loadBankTransactions();
+  } catch (e) {
+    showToast("Erreur de connexion");
+  }
+}
+
+window.shareTransactionDoc = shareTransactionDoc;
+window.deleteTransactionReceipt = deleteTransactionReceipt;
+
+/**
+ * Pro confirmation overlay used when the OCR-detected document amount
+ * doesn't match the transaction amount. Returns a Promise<boolean> that
+ * resolves to true when the user confirms ("Rapprocher quand même"), false
+ * on cancel/back/backdrop.
+ */
+function showAmountMismatchModal({ docType, supplier, docAmountCents, txAmountCents }) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("tx-mismatch-modal");
+    const cancelBtn = document.getElementById("tx-mismatch-cancel");
+    const confirmBtn = document.getElementById("tx-mismatch-confirm");
+    const docEl = document.getElementById("tx-mismatch-doc-amount");
+    const txEl = document.getElementById("tx-mismatch-tx-amount");
+    const diffEl = document.getElementById("tx-mismatch-diff");
+    const metaEl = document.getElementById("tx-mismatch-meta");
+    if (!modal || !cancelBtn || !confirmBtn || !docEl || !txEl || !diffEl) {
+      // Fallback if the modal HTML isn't present.
+      resolve(true);
+      return;
+    }
+
+    // Populate values.
+    docEl.textContent = docAmountCents != null ? formatAmount(Math.abs(docAmountCents)) : "—";
+    txEl.textContent = txAmountCents != null ? formatAmount(Math.abs(txAmountCents)) : "—";
+
+    const metaParts = [];
+    if (docType) metaParts.push(`<span class="tx-mismatch-pill">${escapeHtml(docType)}</span>`);
+    if (supplier) metaParts.push(`<span class="tx-mismatch-supplier">${escapeHtml(supplier)}</span>`);
+    metaEl.innerHTML = metaParts.join("");
+    metaEl.style.display = metaParts.length ? "flex" : "none";
+
+    if (docAmountCents != null && txAmountCents != null) {
+      const diff = Math.abs(docAmountCents - txAmountCents);
+      diffEl.textContent = `Écart : ${formatAmount(diff)}`;
+      diffEl.style.display = "block";
+    } else {
+      diffEl.style.display = "none";
+    }
+
+    // Show modal.
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+
+    let settled = false;
+    const settle = (v) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      modal.style.display = "none";
+      document.body.style.overflow = "";
+      resolve(v);
+    };
+    const onCancel = () => settle(false);
+    const onConfirm = () => settle(true);
+    const onBackdrop = (e) => { if (e.target === modal) settle(false); };
+
+    cancelBtn.addEventListener("click", onCancel);
+    confirmBtn.addEventListener("click", onConfirm);
+    modal.addEventListener("click", onBackdrop);
+
+    function cleanup() {
+      cancelBtn.removeEventListener("click", onCancel);
+      confirmBtn.removeEventListener("click", onConfirm);
+      modal.removeEventListener("click", onBackdrop);
+    }
+  });
+}
+window.showAmountMismatchModal = showAmountMismatchModal;
+
+function closeTransactionDocsModal() {
+  const modal = document.getElementById("tx-docs-modal");
+  if (modal) modal.style.display = "none";
+  document.body.style.overflow = "";
+}
+
+async function viewTransactionDoc(fileId, fileName, contentType) {
+  if (!fileId) return;
+  // Locate this receipt's position so we can pair it with its own matched
+  // Ticket — the viewer panel must show this doc's OCR, not the tx's.
+  let receiptIdx = -1;
+  if (_txDocsCurrent?.receipts) {
+    receiptIdx = _txDocsCurrent.receipts.findIndex(x => String(x.fileId) === String(fileId));
+    if (receiptIdx >= 0) {
+      const r = _txDocsCurrent.receipts[receiptIdx];
+      if (!contentType) contentType = r.contentType || "";
+      if (!fileName) fileName = r.fileName || "";
+    }
+  }
+
+  // Pull the per-doc OCR from THIS receipt only — never from the
+  // transaction's own data. Priority: the receipt's persisted `extracted`
+  // (1st-class source), falling back to the matched Ticket fields.
+  const docData = receiptIdx >= 0 ? _getReceiptDocData(receiptIdx, _txDocsCurrent) : null;
+  const matched = docData?.ticket || null;
+  // Use the receipt's stored OCR directly when present; otherwise
+  // synthesize a minimal extracted from the matched ticket.
+  const ticketExtracted = docData?.extracted
+    ? docData.extracted
+    : (matched
+      ? {
+          beneficiaire: matched.counterpartyName || "",
+          montant_ttc: matched.amountCents != null ? matched.amountCents / 100 : null,
+          montant_ht: matched.htCents != null ? matched.htCents / 100 : null,
+          taux_tva: matched.tvaRate ?? null,
+          devise: matched.currency || "",
+          date_paiement: matched.date || "",
+        }
+      : null);
+
+  await openJustificatifViewer({
+    fileId,
+    fileName: fileName || "",
+    contentType: contentType || "",
+    kind: "receipt",
+    matched,
+    extracted: ticketExtracted,
+  });
+}
+
+/* --------------------------------------------------------------------------
+ * Unified justificatif viewer overlay.
+ * Renders the document in-app: <img> for images, <iframe blob:> for PDFs.
+ * Provides Open-externally and Share fallbacks for any type.
+ * -------------------------------------------------------------------------- */
+let _justifViewerState = { blobUrl: null, fileName: "", contentType: "" };
+
+function _disposeJustifViewer() {
+  // NOTE: do NOT revoke the blob URL here — it is shared with the thumbnail
+  // cache (`_txDocsThumbCache`) so future opens can reuse it instantly. If we
+  // revoked it, reopening the same document would render a broken image.
+  // The URL is freed when the page reloads.
+  _justifViewerState = { blobUrl: null, fileName: "", contentType: "" };
+}
+
+const _JUSTIF_KIND_LABELS = {
+  receipt: { label: "Justificatif", tone: "indigo" },
+  ticket: { label: "Reçu", tone: "amber" },
+  client_invoice: { label: "Facture client", tone: "blue" },
+  supplier_invoice: { label: "Facture fournisseur", tone: "violet" },
+  payslip: { label: "Bulletin de paie", tone: "emerald" },
+  expense: { label: "Note de frais", tone: "slate" },
+  bon_commande: { label: "Bon de commande", tone: "indigo" },
+  matched: { label: "Document rapproché", tone: "indigo" },
+};
+
+function _renderViewerInfoPanel({ kind, fileName, matched, extracted }) {
+  const meta = _JUSTIF_KIND_LABELS[kind] || _JUSTIF_KIND_LABELS.matched;
+  const lines = [];
+
+  // ONLY data extracted from the document itself — never transaction fields
+  // (tx.description, tx.amountCents). For matched items the "document data"
+  // comes from the matched record (ticket/invoice/...), for uploaded
+  // receipts it comes from the OCR `extracted` payload.
+
+  // Émetteur — from OCR / classifier / counterparty on the document
+  const merchant =
+    matched?.counterpartyName ||
+    extracted?.classifier?.merchant_name ||
+    extracted?.beneficiaire ||
+    "";
+  if (merchant) lines.push({ label: "Émetteur", value: merchant });
+
+  if (matched?.ref) lines.push({ label: "Référence", value: matched.ref });
+  if (extracted?.identifiant) lines.push({ label: "ICE / Identifiant", value: extracted.identifiant });
+  if (extracted?.adresse) lines.push({ label: "Adresse", value: extracted.adresse });
+
+  // Date — prefer the doc's payment date over the matched-item date.
+  const dateValue = extracted?.date_paiement || matched?.date || "";
+  if (dateValue) {
+    // date_paiement comes as "26/01/2023" (already French) or ISO; pass to
+    // formatDate which handles ISO, otherwise show the literal string.
+    let displayed = dateValue;
+    try {
+      const parsed = new Date(dateValue);
+      if (!isNaN(parsed.getTime()) && /\d{4}-\d{2}-\d{2}/.test(String(dateValue))) {
+        displayed = formatDate(dateValue);
+      }
+    } catch (_) {}
+    lines.push({ label: "Date", value: displayed });
+  }
+
+  // Amounts read from the document, NOT from the transaction.
+  // The classify API ships `montant_ttc` / `montant_ht` as currency-unit
+  // floats (e.g. 4 = 4.00 EUR), and `taux_tva` as an ARRAY of
+  //   { taux: "5.50%", montant_tva: 0.13, montant_ttc: 2.4 }
+  // entries — one per VAT bracket. The matched-item summary (when present)
+  // ships them as cents and a single rate. We accept both.
+  const ttc = matched?.amountCents != null
+    ? Math.abs(matched.amountCents)
+    : (extracted?.montant_ttc != null ? Math.round(Number(extracted.montant_ttc) * 100) : null);
+  const ht = matched?.htCents != null
+    ? Math.abs(matched.htCents)
+    : (extracted?.montant_ht != null ? Math.round(Number(extracted.montant_ht) * 100) : null);
+
+  // Sum VAT amount across all brackets when we have an array.
+  let tva = matched?.tvaCents != null ? Math.abs(matched.tvaCents) : null;
+  if (tva == null && Array.isArray(extracted?.taux_tva)) {
+    let s = 0;
+    let any = false;
+    for (const r of extracted.taux_tva) {
+      if (r && r.montant_tva != null) {
+        s += Number(r.montant_tva) || 0;
+        any = true;
+      }
+    }
+    if (any) tva = Math.round(s * 100);
+  }
+
+  // VAT rate: pretty-print the array ("5.50% / 10.00%") or a single number.
+  let tvaRateDisplay = null;
+  if (matched?.tvaRate != null) {
+    tvaRateDisplay = `${matched.tvaRate}%`;
+  } else if (Array.isArray(extracted?.taux_tva)) {
+    const rates = extracted.taux_tva
+      .map(r => {
+        if (!r) return null;
+        if (typeof r.taux === "string") return r.taux.trim();
+        if (typeof r.taux === "number") return `${r.taux}%`;
+        return null;
+      })
+      .filter(Boolean);
+    if (rates.length) tvaRateDisplay = rates.join(" / ");
+  } else if (extracted?.taux_tva != null) {
+    tvaRateDisplay = `${extracted.taux_tva}%`;
+  }
+
+  if (ht != null) lines.push({ label: "Montant HT", value: formatAmount(ht) });
+  if (tvaRateDisplay) lines.push({ label: "Taux TVA", value: tvaRateDisplay });
+  if (tva != null) lines.push({ label: "Montant TVA", value: formatAmount(tva) });
+  if (ttc != null) lines.push({ label: "Montant TTC", value: formatAmount(ttc), strong: true });
+
+  if (matched?.status) lines.push({ label: "Statut", value: matched.status });
+
+  const rowsHtml = lines.length === 0
+    ? `<div class="justif-info-empty">Aucune donnée extraite pour ce document.</div>`
+    : lines.map(l => `<div class="justif-info-row${l.strong ? " justif-info-row-strong" : ""}">
+        <span class="justif-info-label">${escapeHtml(l.label)}</span>
+        <span class="justif-info-value">${escapeHtml(String(l.value))}</span>
+      </div>`).join("");
+
+  return `<aside class="justif-info-panel">
+    <header class="justif-info-header">
+      <span class="justif-info-chip justif-info-chip-${meta.tone}">${escapeHtml(meta.label)}</span>
+      ${fileName ? `<div class="justif-info-fname">${escapeHtml(fileName)}</div>` : ""}
+    </header>
+    <div class="justif-info-rows">${rowsHtml}</div>
+  </aside>`;
+}
+
+// Cache enriched OCR fetched from /api/tickets/:id etc. so reopening the same
+// matched document is instant and we don't hit the API repeatedly.
+const _matchedDocOcrCache = new Map();
+
+async function _fetchMatchedDocOcr(matchedType, matchedId) {
+  if (!matchedId) return null;
+  const cacheKey = `${matchedType}:${matchedId}`;
+  if (_matchedDocOcrCache.has(cacheKey)) return _matchedDocOcrCache.get(cacheKey);
+
+  let path = null;
+  if (matchedType === "ticket") path = `/api/tickets/${matchedId}`;
+  // Other matched types (client_invoice, supplier_invoice, payslip…) don't
+  // expose a rich OCR detail endpoint shaped like ApiExtracted yet — we keep
+  // the matched-item summary as-is for those.
+  if (!path) { _matchedDocOcrCache.set(cacheKey, null); return null; }
+
+  try {
+    const res = await apiFetch(path);
+    if (!res.ok) { _matchedDocOcrCache.set(cacheKey, null); return null; }
+    const t = res.data?.ticket;
+    if (!t) { _matchedDocOcrCache.set(cacheKey, null); return null; }
+    // Prefer the raw extracted payload (which preserves the per-bracket
+    // taux_tva array and the original date_paiement) over the flat fields
+    // on the Ticket document. Convert cents → currency units to keep the
+    // shape compatible with what /api/documents/classify returns.
+    const raw = t.extracted || {};
+    const enriched = {
+      beneficiaire: t.beneficiaire || raw.beneficiaire || "",
+      identifiant: t.identifiant || raw.identifiant || "",
+      adresse: t.adresse || raw.adresse || "",
+      taux_tva: raw.taux_tva ?? t.tauxTva ?? null,
+      montant_ht: raw.montant_ht
+        ?? (t.amountHtCents != null ? t.amountHtCents / 100 : null),
+      montant_ttc: raw.montant_ttc
+        ?? (t.amountCents != null ? t.amountCents / 100 : null),
+      date_paiement: raw.date_paiement || t.paymentDate || "",
+      devise: t.currency || raw.devise || "",
+      classifier: raw.classifier || null,
+    };
+    _matchedDocOcrCache.set(cacheKey, enriched);
+    return enriched;
+  } catch (_) {
+    _matchedDocOcrCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+async function openJustificatifViewer({ fileId, fileName, contentType, path, kind, matched, extracted, txAmountCents, txDescription, localBlobUrl, statusMessage }) {
+  const overlay = document.getElementById("justif-viewer");
+  const body = document.getElementById("justif-viewer-body");
+  const title = document.getElementById("justif-viewer-title");
+  if (!overlay || !body) return;
+
+  // Resolve the API path: explicit `path` wins (matched docs), otherwise build
+  // the standard receipts endpoint from the fileId. When the caller already
+  // has the file as a local blob (just-captured upload), it can pass
+  // `localBlobUrl` to skip the network fetch entirely.
+  const apiPath = path || (fileId ? `/api/receipts/${fileId}` : "");
+  if (!apiPath && !localBlobUrl) return;
+
+  _disposeJustifViewer();
+  if (title) title.textContent = fileName || "Justificatif";
+
+  body.innerHTML = `
+    <div class="justif-viewer-loading">
+      <div class="justif-viewer-spinner"></div>
+      <p>Chargement du document...</p>
+    </div>`;
+  overlay.style.display = "flex";
+  document.body.classList.add("lightbox-open");
+
+  // Initial guess from caller-provided hints. The actual content type is read
+  // from the response after fetching — many endpoints (e.g. /api/tickets/:id
+  // /document) return JPEG/PNG even though the matched-item card was treated
+  // as a PDF. We must trust the response, not the hint.
+  const cacheKey = path ? `path:${path}` : `id:${fileId}`;
+  let blobUrl = null;
+  let resolvedCt = contentType || "";
+  // 1) Caller provided a local blob (e.g. from a just-captured upload) —
+  //    use it directly, no network fetch needed.
+  if (localBlobUrl) {
+    blobUrl = localBlobUrl;
+    resolvedCt = contentType || "";
+    if (cacheKey) _txDocsThumbCache.set(cacheKey, { url: blobUrl, type: resolvedCt });
+  } else {
+    const cached = _txDocsThumbCache.get(cacheKey);
+    if (cached) {
+      if (typeof cached === "string") {
+        blobUrl = cached;
+      } else {
+        blobUrl = cached.url || null;
+        if (cached.type) resolvedCt = cached.type;
+      }
+    }
+  }
+  if (!blobUrl) {
+    try {
+      const r = await fetch(`${API_BASE_URL}${apiPath}`, {
+        headers: state.token ? { Authorization: `Bearer ${state.token}` } : {},
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const headerCt = r.headers.get("content-type") || "";
+      const blob = await r.blob();
+      // Trust order: server header > caller hint > blob.type. blob.type is
+      // often empty on Android WebView fetch.
+      resolvedCt = headerCt || resolvedCt || blob.type || "";
+      const typed = (blob.type || !resolvedCt) ? blob : new Blob([blob], { type: resolvedCt });
+      blobUrl = URL.createObjectURL(typed);
+    } catch (e) {
+      body.innerHTML = `
+        <div class="justif-viewer-error">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p class="justif-viewer-error-title">Document introuvable</p>
+          <p class="justif-viewer-error-sub">Vérifiez votre connexion ou réessayez plus tard.</p>
+        </div>`;
+      return;
+    }
+    _txDocsThumbCache.set(cacheKey, { url: blobUrl, type: resolvedCt });
+  }
+
+  _justifViewerState = { blobUrl, fileName: fileName || "justificatif", contentType: resolvedCt };
+
+  // Decide rendering from the resolved content-type (with filename as a
+  // last-resort fallback). PDFs go to <iframe>; everything that looks like
+  // an image goes to the lightbox <img>.
+  const isPdf = /pdf/i.test(resolvedCt) || /\.pdf$/i.test(fileName || "");
+  const isImage = /^image\//i.test(resolvedCt)
+    || /\.(jpe?g|png|gif|webp|bmp|tiff)$/i.test(fileName || "");
+
+  // Kick off a parallel OCR fetch so we can swap in the rich extracted
+  // fields (ICE, adresse, beneficiaire, ...) once they arrive. We use the
+  // matched Ticket the caller paired with this doc — never a "first
+  // matched ticket on the tx", which would copy data across cards.
+  let ocrPromise = null;
+  const matchedId = matched?.id ? String(matched.id) : "";
+  if (matchedId && !matchedId.startsWith("local-")) {
+    ocrPromise = _fetchMatchedDocOcr("ticket", matchedId);
+  }
+
+  const infoPanelHtml = _renderViewerInfoPanel({
+    kind: kind || "receipt",
+    fileName,
+    matched,
+    extracted,
+  });
+
+  // Optional inline status banner (e.g. "Rapprochement en cours...") shown
+  // when the viewer is opened during a still-pending background commit.
+  const initialBannerHtml = statusMessage
+    ? `<div id="justif-viewer-status" class="justif-viewer-status justif-viewer-status-loading">
+         <span class="justif-viewer-status-spinner"></span>
+         <span class="justif-viewer-status-text">${escapeHtml(statusMessage)}</span>
+       </div>`
+    : `<div id="justif-viewer-status" class="justif-viewer-status" style="display:none"></div>`;
+
+  if (isImage) {
+    body.innerHTML = `
+      <div class="justif-viewer-stack">
+        ${initialBannerHtml}
+        <div class="justif-viewer-img-wrap"><img class="justif-viewer-img" alt="${escapeHtml(fileName || "Justificatif")}" src="${blobUrl}" /></div>
+        ${infoPanelHtml}
+      </div>`;
+  } else if (isPdf) {
+    // Android System WebView renders PDFs inside iframes via the built-in
+    // viewer in modern versions. We provide an explicit "open externally"
+    // fallback in the header for older WebViews where the iframe stays blank.
+    body.innerHTML = `
+      <div class="justif-viewer-stack">
+        ${initialBannerHtml}
+        <iframe class="justif-viewer-iframe" src="${blobUrl}#toolbar=0" title="${escapeHtml(fileName || "PDF")}"></iframe>
+        ${infoPanelHtml}
+        <div class="justif-viewer-pdf-fallback">
+          <p>Si la prévisualisation reste vide, ouvrez le document avec votre lecteur PDF.</p>
+          <button class="btn-primary" id="justif-viewer-open-fallback" type="button">Ouvrir avec le lecteur système</button>
+        </div>
+      </div>`;
+    document.getElementById("justif-viewer-open-fallback")?.addEventListener("click", () => {
+      _openJustifExternally();
+    });
+  } else {
+    body.innerHTML = `
+      <div class="justif-viewer-stack">
+        ${initialBannerHtml}
+        <div class="justif-viewer-generic">
+          <div class="justif-viewer-generic-icon">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <p class="justif-viewer-generic-name">${escapeHtml(fileName || "Document")}</p>
+          <p class="justif-viewer-generic-sub">Aperçu non disponible pour ce type de fichier.</p>
+          <button class="btn-primary" id="justif-viewer-open-fallback" type="button">Ouvrir avec le lecteur système</button>
+        </div>
+        ${infoPanelHtml}
+      </div>`;
+    document.getElementById("justif-viewer-open-fallback")?.addEventListener("click", () => {
+      _openJustifExternally();
+    });
+  }
+
+  // After the initial render, if we have a ticket OCR fetch in flight, await
+  // it and swap the info panel for the enriched version. We keep the same DOM
+  // surrounding (image / iframe) so the preview doesn't flicker.
+  if (ocrPromise) {
+    ocrPromise.then(enriched => {
+      if (!enriched) return;
+      // Merge: enriched values overwrite null/empty in the previous extracted.
+      const merged = { ...(extracted || {}) };
+      for (const k of Object.keys(enriched)) {
+        const v = enriched[k];
+        if (v == null || v === "") continue;
+        const cur = merged[k];
+        if (cur == null || cur === "") merged[k] = v;
+      }
+      const panel = document.querySelector("#justif-viewer-body .justif-info-panel");
+      if (!panel) return;
+      panel.outerHTML = _renderViewerInfoPanel({
+        kind: kind || "receipt",
+        fileName,
+        matched,
+        extracted: merged,
+      });
+    }).catch(() => {});
+  }
+}
+
+async function _openJustifExternally() {
+  if (!_justifViewerState.blobUrl) return;
+  // Persist the blob to cache then hand it to the system app picker.
+  try {
+    const fileName = _justifViewerState.fileName || `justificatif_${Date.now()}`;
+    const r = await fetch(_justifViewerState.blobUrl);
+    const blob = await r.blob();
+    const base64 = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const v = String(fr.result || "");
+        const i = v.indexOf(",");
+        resolve(i >= 0 ? v.slice(i + 1) : v);
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+    await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+    const uriResult = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
+    await Share.share({ title: fileName, url: uriResult.uri, dialogTitle: "Ouvrir avec" });
+  } catch (e) {
+    const msg = String(e?.message || e || "");
+    if (msg && !/cancel/i.test(msg)) showToast("Erreur d'ouverture");
+  }
+}
+
+async function _shareJustifFromViewer() {
+  if (!_justifViewerState.blobUrl) return;
+  try {
+    await Share.share({
+      title: _justifViewerState.fileName || "Justificatif",
+      url: _justifViewerState.blobUrl,
+      dialogTitle: "Partager le justificatif",
+    });
+  } catch (e) {
+    const msg = String(e?.message || e || "");
+    if (msg && !/cancel/i.test(msg)) {
+      // Fallback: write to filesystem first then share via system picker.
+      _openJustifExternally();
+    }
+  }
+}
+
+function closeJustificatifViewer() {
+  const overlay = document.getElementById("justif-viewer");
+  if (overlay) overlay.style.display = "none";
+  document.body.classList.remove("lightbox-open");
+  _disposeJustifViewer();
+}
+
+window.openJustificatifViewer = openJustificatifViewer;
+window.closeJustificatifViewer = closeJustificatifViewer;
+
+/**
+ * Update or hide the inline status banner inside the viewer overlay.
+ * kind: "loading" | "success" | "error" — controls colour + icon.
+ * Pass an empty/null message to hide the banner.
+ */
+function setJustifViewerStatus(message, kind = "loading", { autoHideMs } = {}) {
+  const el = document.getElementById("justif-viewer-status");
+  if (!el) return;
+  if (!message) {
+    el.style.display = "none";
+    el.innerHTML = "";
+    return;
+  }
+  el.className = `justif-viewer-status justif-viewer-status-${kind}`;
+  const iconHtml = kind === "loading"
+    ? `<span class="justif-viewer-status-spinner"></span>`
+    : kind === "success"
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+  el.innerHTML = `${iconHtml}<span class="justif-viewer-status-text">${escapeHtml(message)}</span>`;
+  el.style.display = "flex";
+  if (autoHideMs && autoHideMs > 0) {
+    setTimeout(() => {
+      const cur = document.getElementById("justif-viewer-status");
+      if (cur && cur.classList.contains(`justif-viewer-status-${kind}`)) {
+        cur.style.display = "none";
+        cur.innerHTML = "";
+      }
+    }, autoHideMs);
+  }
+}
+window.setJustifViewerStatus = setJustifViewerStatus;
+
+async function attachAnotherDocFromModal() {
+  if (!_txDocsCurrent) return;
+  const tx = _txDocsCurrent;
+  // Hide the docs-modal during the scan flow so the scan-modal is fully
+  // visible. We DO NOT reset its state — _txDocsCurrent stays around so
+  // the post-upload code can re-render the cards in place and re-show the
+  // modal with the freshly attached doc.
+  const docsModalEl = document.getElementById("tx-docs-modal");
+  if (docsModalEl) docsModalEl.style.display = "none";
+  await attachDocToTransaction(tx.id, tx.amount, tx.description, "");
+}
+
+window.openTransactionDocsModal = openTransactionDocsModal;
+window.closeTransactionDocsModal = closeTransactionDocsModal;
+
+/**
+ * Manual bank reconciliation flow.
+ *
+ * - If the transaction already has a justificatif, tap → view it in the lightbox.
+ * - Otherwise: confirm intent → ML Kit scan → live processing modal during
+ *   classification → ALWAYS confirm with the detected summary before attaching →
+ *   POST to /api/transactions/:id/receipts.
+ */
+async function attachDocToTransaction(transactionId, transactionAmountCents, transactionDescription, existingReceiptId) {
+  if (!transactionId) return;
+
+  // If a receipt is already attached, show it instead of starting attach flow.
+  if (existingReceiptId) {
+    const url = await fetchAuthenticatedImage(`/api/receipts/${existingReceiptId}`);
+    if (url) {
+      _disposeTicketImage();
+      _ticketImageObjectUrl = url;
+      openTicketLightbox(url);
+      return;
+    }
+    // If we couldn't fetch (deleted file etc.), fall through to attach a new one.
+  }
+
+  if (!confirm(`Voulez-vous attacher un justificatif à la transaction ?\n\n${transactionDescription || ""}`)) return;
+
+  // Step 1: capture via ML Kit Document Scanner (back camera + auto-crop)
+  let captured = null;
+  try {
+    if (Capacitor.getPlatform() === "android") {
+      const scan = await DocumentScanner.scan({ pageLimit: 1, galleryImport: false });
+      if (scan?.base64) captured = { base64: scan.base64, format: scan.format || "jpeg" };
+    }
+  } catch (scanErr) {
+    const msg = String(scanErr?.message || scanErr || "");
+    if (/cancel/i.test(msg)) return;
+  }
+  if (!captured) {
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 88,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Camera,
+        width: 1800,
+        correctOrientation: true,
+      });
+      if (!photo?.base64String) return;
+      captured = { base64: photo.base64String, format: photo.format || "jpeg" };
+    } catch (_) { return; }
+  }
+
+  // Step 2: open the processing window (reuse the scan modal so the user sees
+  // the captured preview + spinner instead of a vanishing toast).
+  state.capturedImage = captured;
+  openScanModal();
+  const previewImg = document.getElementById("capture-preview");
+  if (previewImg) previewImg.src = `data:image/${captured.format};base64,${captured.base64}`;
+  document.getElementById("scan-step-preview").style.display = "block";
+  document.getElementById("analyzing-overlay").style.display = "flex";
+  document.getElementById("ticket-result").style.display = "none";
+  document.getElementById("scan-error").style.display = "none";
+
+  // Build the blob
+  const fileName = `tx_${Date.now()}.${captured.format}`;
+  const contentType = captured.format === "png" ? "image/png" : "image/jpeg";
+  const byteChars = atob(captured.base64);
+  const byteArr = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+  const blob = new Blob([byteArr], { type: contentType });
+
+  // Step 3: classify the captured doc first (no commit) so we can read the
+  // OCR amount and confirm with the user when it differs from the
+  // transaction amount. The actual commit happens in step 5.
+  // The scan-modal stays open with the captured preview + analyzing
+  // spinner the entire time so the user has visual feedback.
+  // We KEEP the extraction payload around so step 5 can hand it to
+  // /api/tickets/mobile and skip the redundant server-side OCR (saves a
+  // ~15s round trip).
+  let detectedAmountCents = null;
+  let detectedSupplier = "";
+  let detectedDocType = "";
+  let prefilledExtraction = null;
+  try {
+    // JSON + base64 instead of multipart — Capacitor's fetch
+    // interception of multipart with binary blobs is unreliable across
+    // devices (Xiaomi MIUI, older Android, custom WebViews). The native
+    // CapacitorHttp.post path with a JSON body is bulletproof.
+    const cRes = await CapacitorHttp.post({
+      url: `${API_BASE_URL}/api/documents/classify`,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${state.token}`,
+      },
+      data: {
+        organizationId: state.orgId,
+        fileName,
+        contentType,
+        base64: captured.base64,
+      },
+      readTimeout: 90,
+      connectTimeout: 30,
+    });
+    console.log("[CLASSIFY] status:", cRes.status);
+    if (cRes.status >= 200 && cRes.status < 300) {
+      const cData = cRes.data || {};
+      const ex = Array.isArray(cData?.extraction) ? cData.extraction[0] : cData?.extraction;
+      if (ex) {
+        prefilledExtraction = ex;
+        if (ex.montant_ttc != null) {
+          detectedAmountCents = Math.round(Number(ex.montant_ttc) * 100);
+        }
+        detectedSupplier = ex.beneficiaire || ex.emetteur || "";
+        detectedDocType = cData?.classification?.label || "";
+      }
+    } else {
+      console.warn("[CLASSIFY] failed:", cRes.status, JSON.stringify(cRes.data || {}).slice(0, 200));
+    }
+  } catch (e) {
+    console.error("[CLASSIFY] network error:", e?.message || e);
+    // Classify is best-effort; if it fails we continue without the amount
+    // check rather than block the user.
+  }
+
+  // Step 4: amount-mismatch confirmation. We only block the user when the
+  // OCR'd TTC differs noticeably (>1 MAD) from the transaction amount.
+  // When OCR didn't return an amount we let the user through silently —
+  // there's nothing to compare. Hide the spinner during the prompt so the
+  // OS dialog isn't covered, then re-show it for the commit.
+  // Helper used on every exit path (abort, error, success) to make sure the
+  // docs-modal is back in front of the user — never strand them on a blank
+  // screen with body locked.
+  const _restoreDocsModalOnAbort = () => {
+    const docsModalEl = document.getElementById("tx-docs-modal");
+    if (docsModalEl && _txDocsCurrent) {
+      docsModalEl.style.display = "flex";
+      document.body.style.overflow = "hidden";
+    }
+  };
+
+  if (detectedAmountCents != null && transactionAmountCents > 0) {
+    const diffCents = Math.abs(detectedAmountCents - transactionAmountCents);
+    if (diffCents > 100) {
+      document.getElementById("analyzing-overlay").style.display = "none";
+      const ok = await showAmountMismatchModal({
+        docType: detectedDocType || "Document",
+        supplier: detectedSupplier || "",
+        docAmountCents: detectedAmountCents,
+        txAmountCents: transactionAmountCents,
+      });
+      if (!ok) {
+        closeScanModal();
+        _restoreDocsModalOnAbort();
+        return;
+      }
+      // User accepted the rapprochement — don't show the OCR spinner again.
+      // We close the scan-modal right away and run the commit in the
+      // background; the docs-modal stays visible underneath with a subtle
+      // toast, and the viewer will open as soon as the API returns.
+    }
+  }
+
+  // Step 5: open the viewer immediately — no flash, no toast queue, no
+  // "OCR working again" feel. We have the captured image as a local blob
+  // and the OCR data from /api/documents/classify, so the user sees the
+  // full receipt + extracted fields right now. The actual server commit
+  // runs in the background; a subtle status banner keeps them informed.
+  closeScanModal();
+
+  // Build the OCR payload for the viewer panel from the classify result.
+  // Preserve `taux_tva` as-is — it's an array of brackets which the panel
+  // renders specially.
+  const classifiedExtracted = prefilledExtraction
+    ? {
+        beneficiaire: prefilledExtraction.beneficiaire || prefilledExtraction.emetteur || "",
+        identifiant: prefilledExtraction.identifiant || prefilledExtraction.ice || "",
+        adresse: prefilledExtraction.adresse || "",
+        taux_tva: prefilledExtraction.taux_tva ?? null,
+        montant_ht: prefilledExtraction.montant_ht ?? null,
+        montant_ttc: prefilledExtraction.montant_ttc ?? null,
+        date_paiement: prefilledExtraction.date_paiement || "",
+        devise: prefilledExtraction.devise || "",
+        classifier: detectedDocType ? { categorie: detectedDocType, merchant_name: detectedSupplier } : null,
+      }
+    : null;
+
+  // Restore the docs-modal *behind* the viewer so when the user closes the
+  // viewer they land on the modal (which we'll have updated with the new
+  // card by then).
+  const docsModalEl = document.getElementById("tx-docs-modal");
+  if (docsModalEl) {
+    docsModalEl.style.display = "flex";
+    document.body.style.overflow = "hidden";
+  }
+
+  // Local blob URL → instant preview, no fetch round trip.
+  let localBlobUrl = null;
+  try { localBlobUrl = URL.createObjectURL(blob); } catch (_) {}
+
+  await openJustificatifViewer({
+    fileName,
+    contentType,
+    kind: "receipt",
+    extracted: classifiedExtracted,
+    localBlobUrl,
+    statusMessage: "Rapprochement en cours...",
+  });
+
+  // Step 6: commit via the resilient JSON+base64 path. The viewer is
+  // already showing the image + OCR; only the inline status banner
+  // reflects progress.
+  let aData = null;
+  let commitOk = false;
+  let aStatus = 0;
+  try {
+    const aRes = await CapacitorHttp.post({
+      url: `${API_BASE_URL}/api/transactions/${transactionId}/receipts`,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${state.token}`,
+      },
+      data: {
+        organizationId: state.orgId,
+        fileName,
+        contentType,
+        base64: captured.base64,
+        extracted: prefilledExtraction || null,
+      },
+      readTimeout: 90,
+      connectTimeout: 30,
+    });
+    aStatus = aRes.status;
+    aData = aRes.data || {};
+    console.log("[ATTACH] status:", aStatus);
+    if (aStatus >= 200 && aStatus < 300) {
+      commitOk = true;
+    } else if (aStatus === 409) {
+      setJustifViewerStatus(aData?.error || "Document déjà attaché", "error", { autoHideMs: 4500 });
+    } else {
+      console.warn("[ATTACH] failed:", aStatus, aData);
+      setJustifViewerStatus(aData?.error || `Erreur ${aStatus} lors de l'attachement`, "error", { autoHideMs: 5000 });
+    }
+  } catch (e) {
+    console.error("[ATTACH] network error:", e?.message || e);
+    setJustifViewerStatus(`Erreur réseau: ${e?.message || "connexion"}`, "error", { autoHideMs: 5000 });
+  }
+
+  if (!commitOk) {
+    // Viewer stays open with the local image so the user can decide what
+    // to do next (close, retry from the modal, etc.).
+    return;
+  }
+
+  // Best-effort secondary call so the doc also lands on Sorties → Reçus.
+  try {
+    fetch(`${API_BASE_URL}/api/tickets/mobile`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${state.token}`,
+      },
+      body: JSON.stringify({
+        organizationId: state.orgId,
+        fileName,
+        format: captured.format,
+        base64: captured.base64,
+        transactionId,
+        prefilledExtraction,
+      }),
+    }).catch(err => console.warn("[ATTACH] secondary Ticket create failed:", err));
+  } catch (_) {}
+
+  // /api/transactions/:id/receipts returns { ok:true, receipt:{ fileId, fileName, contentType, size } }.
+  // Re-cache the local blob URL under the real fileId so future opens of
+  // this receipt skip the network fetch entirely.
+  const newReceipt = aData?.receipt;
+  if (newReceipt?.fileId && localBlobUrl) {
+    _txDocsThumbCache.set(`id:${newReceipt.fileId}`, {
+      url: localBlobUrl,
+      type: newReceipt.contentType || contentType,
+    });
+  }
+  // Persist the OCR locally keyed by the server's receipt fileId. This
+  // survives navigation / app restart, so even if the webapp hasn't been
+  // redeployed (and the server doesn't return `extracted` in the GET) the
+  // phone still recovers the OCR on next open.
+  if (newReceipt?.fileId && prefilledExtraction) {
+    _setLocalReceiptOcr(newReceipt.fileId, prefilledExtraction);
+  }
+
+  // Keep the docs-modal state aligned so the new card is visible when the
+  // user closes the viewer. The per-doc OCR is stored ON the receipt
+  // itself — same shape we just persisted server-side — so the card
+  // renderer reads it via _getReceiptDocData and shows the doc's own
+  // merchant + amount.
+  if (newReceipt?.fileId && _txDocsCurrent) {
+    _txDocsCurrent.receipts = [...(_txDocsCurrent.receipts || []), {
+      fileId: newReceipt.fileId,
+      fileName: newReceipt.fileName || fileName,
+      contentType: newReceipt.contentType || contentType,
+      extracted: prefilledExtraction || null,
+    }];
+    _renderTxDocsList(_txDocsCurrent.receipts);
+    _renderTxDocsWallet(_txDocsCurrent);
+    const countEl = document.getElementById("tx-docs-count");
+    const n = _txDocsCurrent.receipts.length;
+    if (countEl) {
+      countEl.innerHTML = `<span class="tx-docs-section-title-text">Justificatifs</span><span class="tx-docs-count-badge">${n}</span>`;
+    }
+    const addLabel = document.getElementById("tx-docs-add-label");
+    if (addLabel) addLabel.textContent = n > 0 ? "Ajouter un autre justificatif" : "Ajouter un justificatif";
+  }
+
+  // Flip the inline banner from "loading" to "success" and let it fade.
+  setJustifViewerStatus("Justificatif attaché", "success", { autoHideMs: 1800 });
+
+  // Refresh the bank transactions list silently so the row pill flips to
+  // "Justifié" the next time the user backs out of the viewer + modal.
+  loadBankTransactions();
+}
+window.attachDocToTransaction = attachDocToTransaction;
+
+// In-memory store for transaction details consulted by the click handler.
+// Cleared & rebuilt on every loadBankTransactions() call.
+const _txDataIndex = new Map();
+
+// Map a category / merchant string to one of the Lucide icons we shipped to
+// www/img/icons/. Falls back to "wallet". Each entry also carries a
+// background colour for the avatar tile, N26-style.
+const _CATEGORY_ICON_MAP = [
+  // (regex tested against the lowercased string, [iconFile, bg, fg])
+  [/(restaurant|food|repas|cantine|food|fastfood|fast.?food|mcdo|kfc|burger|pizza)/, ["utensils", "#fff7ed", "#c2410c"]],
+  [/(cafe|coffee|starbucks)/, ["coffee", "#fef3c7", "#b45309"]],
+  [/(uber|taxi|cab|car)/, ["car", "#dbeafe", "#1d4ed8"]],
+  [/(bus|transport)/, ["bus", "#dbeafe", "#1d4ed8"]],
+  [/(train|sncf|tgv|ouigo|ter)/, ["train-front", "#dbeafe", "#1d4ed8"]],
+  [/(airline|airways|flight|avion|royal\s*air|ryanair|easyjet)/, ["plane", "#e0e7ff", "#4338ca"]],
+  [/(hotel|airbnb|booking)/, ["hotel", "#ede9fe", "#6d28d9"]],
+  [/(fuel|essence|station|shell|total|bp|carburant)/, ["fuel", "#fee2e2", "#b91c1c"]],
+  [/(cinema|netflix|disney|prime\s*video|spectacle|theatre)/, ["film", "#fce7f3", "#be185d"]],
+  [/(spotify|deezer|apple\s*music|music)/, ["music", "#dcfce7", "#15803d"]],
+  [/(cadeau|gift|fleur)/, ["gift", "#fce7f3", "#be185d"]],
+  [/(gym|fitness|sport|basic.?fit|smart.?fit)/, ["dumbbell", "#fef3c7", "#b45309"]],
+  [/(pharmacie|pharmacy|medic|sante)/, ["heart-pulse", "#fee2e2", "#b91c1c"]],
+  [/(docteur|doctor|hopital|clinique|consultation)/, ["stethoscope", "#fee2e2", "#b91c1c"]],
+  [/(ecole|school|universite|formation|udemy|coursera)/, ["graduation-cap", "#dbeafe", "#1d4ed8"]],
+  [/(loyer|rent|appart|maison|electricite|edf|gaz|eau|amendis|lydec)/, ["house", "#f1f5f9", "#475569"]],
+  [/(internet|wifi|orange|inwi|maroc.?telecom|fibre|adsl)/, ["wifi", "#dbeafe", "#1d4ed8"]],
+  [/(mobile|forfait|sfr|bouygues|free)/, ["smartphone", "#e0e7ff", "#4338ca"]],
+  [/(salaire|virement.?reçu|honoraires|prestation|client)/, ["briefcase", "#dcfce7", "#15803d"]],
+  [/(impot|impots|tax|cnss|tva|fisc)/, ["landmark", "#f1f5f9", "#475569"]],
+  [/(retrait|dab|atm|cash)/, ["wallet", "#f1f5f9", "#475569"]],
+  [/(carte|card|paiement)/, ["credit-card", "#eef2ff", "#4338ca"]],
+  [/(epargne|savings|piggy)/, ["piggy-bank", "#fce7f3", "#be185d"]],
+  [/(facture|invoice|recu|receipt)/, ["receipt", "#f1f5f9", "#475569"]],
+  [/(amazon|shop|magasin|carrefour|marjane|aswak|acima|leclerc|auchan|ikea|h&m|zara)/, ["shopping-bag", "#fff7ed", "#c2410c"]],
+  [/(reparation|garage|entretien|plomberie)/, ["wrench", "#f1f5f9", "#475569"]],
+  [/(vetement|fashion|mode)/, ["shirt", "#fce7f3", "#be185d"]],
+  [/(bebe|baby|enfant|pampers)/, ["baby", "#fce7f3", "#be185d"]],
+];
+
+/**
+ * Returns the first meaningful character of a transaction's description
+ * for use as an avatar letter. Robust against:
+ *  - bank-prefix noise ("PAIEMENT", "VIREMENT", "CB", "RETRAIT", ...)
+ *  - numeric tokens ("230126-274", "001", reference numbers, dates, amounts)
+ *  - pure-numeric/symbol words — only A–Z letters can become the avatar
+ *  - diacritics — normalised before matching the SKIP list
+ *
+ * Examples:
+ *  "PAIEMENT CB AMAZON 230126"       → "A"
+ *  "VIREMENT SALAIRE 21/04/2026"     → "S"
+ *  "RETRAIT DAB BMCE 001 CASA"       → "B"
+ *  "230126-274 LAGARDERE TR"         → "L"
+ */
+function _txAvatarInitial(desc) {
+  const SKIP = new Set([
+    // Operation prefixes
+    "paiement", "paiment", "virement", "vir", "retrait", "prelevement",
+    "achat", "remise", "frais", "cheque", "tpe", "dab", "atm", "depot",
+    "transfer", "transfert", "facture",
+    // Card / channel
+    "cb", "carte", "credit", "debit",
+    // Articles / connectors (FR)
+    "par", "de", "du", "le", "la", "les", "et", "a", "au", "aux",
+    "en", "pour", "sur", "sous",
+    // Channel / method
+    "internet", "mobile", "online", "web", "tel", "phone",
+    // Common reference-y filler
+    "ref", "no", "num", "id",
+    // Months / weekday abbreviations that sometimes appear before merchant
+    "jan", "fev", "mar", "avr", "mai", "jun", "juil", "aout", "sep",
+    "oct", "nov", "dec",
+  ]);
+
+  // Strip diacritics, then take only word-like tokens. The key change vs
+  // the previous version: we ONLY accept tokens that have at least one
+  // ASCII letter — pure-digit / digit-prefixed strings (reference numbers,
+  // dates, amounts) are skipped entirely, so the avatar is never "2" or "0".
+  const tokens = String(desc || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean);
+
+  for (const tok of tokens) {
+    // Reject anything that contains a digit OR starts with a non-letter.
+    if (/[0-9]/.test(tok)) continue;
+    // Reject single letters that are clearly noise ("a", "à", "e").
+    if (tok.length < 2) continue;
+    if (SKIP.has(tok.toLowerCase())) continue;
+    // First character of the first qualifying token wins.
+    const ch = tok.charAt(0).toUpperCase();
+    if (/^[A-Z]$/.test(ch)) return ch;
+  }
+
+  // Fallback: scan again for any letter from any token (so "S" wins over
+  // "?" when the description was something like "S.A.R.L. 230126").
+  for (const tok of tokens) {
+    for (const ch of tok) {
+      const u = ch.toUpperCase();
+      if (/^[A-Z]$/.test(u)) return u;
+    }
+  }
+  return "?";
+}
+
+function _txCategoryAvatar(tx) {
+  const text = `${tx.description || ""} ${tx.category || ""} ${tx.thirdPartyLabel || ""}`.toLowerCase();
+  for (const [re, val] of _CATEGORY_ICON_MAP) {
+    if (re.test(text)) return { icon: val[0], bg: val[1], fg: val[2] };
+  }
+  // Default depends on direction: green building for incoming, slate wallet for outgoing.
+  if (isDebitTx(tx)) return { icon: "wallet", bg: "#f1f5f9", fg: "#475569" };
+  return { icon: "building-2", bg: "#dcfce7", fg: "#15803d" };
+}
+
+function _renderBankBalanceCard(transactions) {
+  const card = document.getElementById("bank-balance-card");
+  if (!card) return;
+  // We don't have an "accounts" list in this scope; derive a useful summary
+  // from the transactions: net flow this month + total tx count.
+  let netCents = 0;
+  let monthIn = 0;
+  let monthOut = 0;
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = now.getMonth();
+  for (const tx of transactions) {
+    const c = Math.abs(Number(tx.amountCents || 0));
+    const debit = isDebitTx(tx);
+    netCents += debit ? -c : c;
+    const d = tx.date ? new Date(tx.date) : null;
+    if (d && d.getFullYear() === yyyy && d.getMonth() === mm) {
+      if (debit) monthOut += c; else monthIn += c;
+    }
+  }
+  const monthFlow = monthIn - monthOut;
+  const amountEl = document.getElementById("bank-balance-amount");
+  const acctEl = document.getElementById("bank-balance-accounts");
+  const flowEl = document.getElementById("bank-balance-flow");
+  if (amountEl) amountEl.textContent = formatAmount(netCents);
+  if (acctEl) acctEl.textContent = `${transactions.length} transaction${transactions.length > 1 ? "s" : ""}`;
+  if (flowEl) {
+    const sign = monthFlow >= 0 ? "+" : "−";
+    flowEl.textContent = `${sign}${formatAmount(Math.abs(monthFlow))} ce mois`;
+  }
+  card.classList.toggle("bank-balance-card-positive", netCents >= 0);
+  card.classList.toggle("bank-balance-card-negative", netCents < 0);
+}
+// Last-fetched, fully-formed transactions. Used by the realtime client-side
+// search to filter without a network round-trip.
+let _txCachedTransactions = [];
+
+/**
+ * Lowercases AND strips diacritics so "café" matches "cafe", "Société"
+ * matches "societe", etc. — essential for French descriptions.
+ */
+const _DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");
+function _normSearch(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(_DIACRITICS_RE, "")
+    .trim();
+}
+
+/**
+ * Realtime client-side search across description, amount, category, method,
+ * counterparty (matched item / extracted), status. Numeric tokens match
+ * against the formatted amount too — so typing "150" finds 150,00 MAD.
+ * Description is the primary field; everything else is additive.
+ */
+function _txMatchesSearch(tx, q) {
+  const needle = _normSearch(q);
+  if (!needle) return true;
+
+  // Primary: description / label.
+  const desc = _normSearch(`${tx.description || ""} ${tx.label || ""}`);
+  if (desc.includes(needle)) return true;
+
+  // Other transaction fields.
+  const meta = _normSearch(
+    [tx.category, tx.method, tx.thirdPartyLabel, tx.thirdPartyRef,
+     tx.invoiceRef, tx.accountLabel, tx.accountCode]
+      .filter(Boolean).join(" ")
+  );
+  if (meta.includes(needle)) return true;
+
+  // Amount: raw digits and formatted forms.
+  const amt = tx.amountCents != null ? Math.abs(tx.amountCents) : null;
+  if (amt != null) {
+    const digits = needle.replace(/[^\d]/g, "");
+    if (digits && String(amt).includes(digits)) return true;
+    if (_normSearch(formatAmount(amt)).includes(needle)) return true;
+  }
+
+  // OCR fields stored on the tx.
+  const ext = tx.extracted || {};
+  const fromExtracted = _normSearch(
+    [ext.beneficiaire, ext.identifiant, ext.adresse,
+     ext.classifier?.merchant_name, ext.classifier?.categorie]
+      .filter(Boolean).join(" ")
+  );
+  if (fromExtracted.includes(needle)) return true;
+
+  // Matched items (linked tickets / invoices / etc.).
+  const matched = Array.isArray(tx.matchedItems) ? tx.matchedItems : [];
+  for (const it of matched) {
+    if (!it) continue;
+    const m = _normSearch(
+      [it.label, it.counterpartyName, it.ref, it.status]
+        .filter(Boolean).join(" ")
+    );
+    if (m.includes(needle)) return true;
+  }
+
+  return false;
+}
+
+function _renderTxRows(transactions) {
+  const txContainer = document.getElementById("transactions-list");
+  if (!txContainer) return;
+  if (transactions.length === 0) {
+    txContainer.innerHTML = emptyState(
+      `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+      "Aucune transaction"
+    );
+    return;
+  }
+  // Group transactions by day for an N26-style timeline. The list is
+  // already sorted desc by the API.
+  const groups = new Map();
+  for (const tx of transactions) {
+    const d = tx.date || tx.valueDate;
+    if (!d) continue;
+    const key = String(d).slice(0, 10);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(tx);
+  }
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  const dayLabel = (key) => {
+    const dd = new Date(key);
+    if (isNaN(dd.getTime())) return key;
+    if (dd.toDateString() === today.toDateString()) return "Aujourd'hui";
+    if (dd.toDateString() === yest.toDateString()) return "Hier";
+    return dd.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" });
+  };
+  let html = "";
+  for (const [key, list] of groups) {
+    let dayNet = 0;
+    for (const tx of list) {
+      const c = Math.abs(Number(tx.amountCents || 0));
+      dayNet += isDebitTx(tx) ? -c : c;
+    }
+    html += `<div class="tx-day-header">
+      <span class="tx-day-label">${escapeHtml(dayLabel(key))}</span>
+      <span class="tx-day-total ${dayNet >= 0 ? "amount-positive" : "amount-negative"}">${dayNet >= 0 ? "+" : "−"}${formatAmount(Math.abs(dayNet))}</span>
+    </div>`;
+    html += list.map(_renderTxRowHtml).join("");
+  }
+  txContainer.innerHTML = html;
+}
+
+function _applyTxSearchAndRender() {
+  const search = document.getElementById("tx-search")?.value || "";
+  const filtered = search.trim()
+    ? _txCachedTransactions.filter(tx => _txMatchesSearch(tx, search))
+    : _txCachedTransactions;
+  _renderTxRows(filtered);
+  // Hero balance always reflects the unfiltered universe so users can use
+  // the search to drill in without their balance reading "lying" to them.
+  _renderBankBalanceCard(_txCachedTransactions);
+}
+
 async function loadBankTransactions() {
   if (!state.orgId) return;
+  _txDataIndex.clear();
   const txContainer = document.getElementById("transactions-list");
   txContainer.innerHTML = loadingHtml();
-  let url = `/api/transactions?organizationId=${state.orgId}&limit=50&sortDirection=desc`;
-  // Apply filters
+  // Server-side date / direction filters only — search is local + realtime.
+  let url = `/api/transactions?organizationId=${state.orgId}&limit=200&sortDirection=desc`;
   const from = document.getElementById("tx-filter-from")?.value;
   const to = document.getElementById("tx-filter-to")?.value;
   const direction = document.getElementById("tx-filter-direction")?.value;
-  const search = document.getElementById("tx-search")?.value?.trim();
   if (from) url += `&from=${from}`;
   if (to) url += `&to=${to}`;
   if (direction) url += `&direction=${direction}`;
-  if (search) url += `&search=${encodeURIComponent(search)}`;
   try {
     const res = await apiFetch(url);
     if (res.ok) {
-      const transactions = res.data?.transactions || [];
-      if (transactions.length === 0) {
-        txContainer.innerHTML = emptyState(
-          `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
-          "Aucune transaction"
-        );
-      } else {
-        txContainer.innerHTML = transactions.map(tx => {
-          const desc = tx.description || tx.label || "Transaction";
-          const amount = tx.amountCents != null ? formatAmount(Math.abs(tx.amountCents)) : "-";
-          const isDebit = (tx.direction === "debit" || tx.amountCents < 0);
-          const amountClass = isDebit ? "amount-negative" : "amount-positive";
-          const sign = isDebit ? "-" : "+";
-          const logoHtml = tx.logoUrl
-            ? `<img src="${API_BASE_URL}${tx.logoUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)" />`
-            : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${isDebit ? '<polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/>' : '<polyline points="17 7 7 17"/><polyline points="7 7 7 17 17 17"/>'}</svg>`;
-          return `<div class="list-item">
-            <div class="list-item-icon" style="background:${isDebit ? "var(--red-50)" : "var(--green-50)"};color:${isDebit ? "var(--red-600)" : "var(--green-600)"}">${logoHtml}</div>
-            <div class="list-item-content">
-              <div class="list-item-title">${escapeHtml(desc)}</div>
-              <div class="list-item-meta">${formatDate(tx.date || tx.valueDate)}${tx.category ? ` <span class="meta-dot"></span> ${escapeHtml(tx.category)}` : ""}</div>
-            </div>
-            <div class="list-item-amount ${amountClass}">${sign}${amount}</div>
-          </div>`;
-        }).join("");
-      }
+      _txCachedTransactions = res.data?.transactions || [];
+      _applyTxSearchAndRender();
+      return;
     } else {
       txContainer.innerHTML = emptyState("", "Erreur de chargement");
     }
   } catch (e) {
     txContainer.innerHTML = emptyState("", "Erreur de connexion");
   }
+}
+
+// Renders a single tx row's HTML and registers its data in _txDataIndex.
+function _renderTxRowHtml(tx) {
+  const desc = tx.description || tx.label || "Transaction";
+  const amountAbs = Math.abs(tx.amountCents || 0);
+  const amount = tx.amountCents != null ? formatAmount(amountAbs) : "-";
+  const isDebit = isDebitTx(tx);
+  const amountClass = isDebit ? "amount-negative" : "amount-positive";
+  const sign = isDebit ? "-" : "+";
+  const txId = tx.id || tx._id;
+  const receipts = Array.isArray(tx.receipts) ? tx.receipts : [];
+  const hasMatchedItems = Array.isArray(tx.matchedItems) && tx.matchedItems.some(it => it && it.pdfUrl);
+  const hasReceipt = receipts.length > 0 || tx.matched === true || hasMatchedItems;
+  const cat = _txCategoryAvatar(tx);
+  // Avatar shows the merchant's initial (first letter of the description's
+  // first meaningful word) — same look the contacts/clients lists use,
+  // tinted by category. When the API ships a real logo we still prefer it.
+  const initial = _txAvatarInitial(desc);
+  const logoHtml = tx.logoUrl
+    ? `<img src="${API_BASE_URL}${tx.logoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />`
+    : `<span class="tx-avatar-initial">${escapeHtml(initial)}</span>`;
+  const justifiedPill = hasReceipt
+    ? `<span class="tx-status-pill tx-status-justified">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        Justifié
+      </span>`
+    : `<span class="tx-status-pill tx-status-unjustified">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Sans justificatif
+      </span>`;
+  // Stash the heavy bits in an in-memory map keyed by txId. The DOM only
+  // carries the txId — small dataset, no JSON.parse on click.
+  _txDataIndex.set(String(txId), {
+    id: String(txId),
+    amount: amountAbs,
+    description: desc,
+    direction: isDebit ? "debit" : "credit",
+    date: tx.date || tx.valueDate || "",
+    receipts,
+    matchedInvoice: tx.matchedInvoice || null,
+    matchedItems: Array.isArray(tx.matchedItems) ? tx.matchedItems : [],
+    extracted: tx.extracted || null,
+  });
+  return `<div class="tx-row list-item-tap ${hasReceipt ? "tx-row-justified" : "tx-row-unjustified"}" data-tx-attach-id="${escapeHtml(String(txId))}">
+    <div class="tx-row-accent"></div>
+    <div class="tx-row-icon" style="background:${cat.bg};color:${cat.fg}">${logoHtml}</div>
+    <div class="tx-row-body">
+      <div class="tx-row-line1">
+        <span class="tx-row-merchant">${escapeHtml(desc)}</span>
+        <span class="tx-row-amount ${amountClass}">${sign}${amount}</span>
+      </div>
+      <div class="tx-row-line2">
+        <span class="tx-row-meta">${formatDate(tx.date || tx.valueDate)}${tx.category ? ` <span class="meta-dot"></span> ${escapeHtml(tx.category)}` : ""}</span>
+        ${justifiedPill}
+      </div>
+    </div>
+  </div>`;
 }
 
 async function loadBankStatements() {
@@ -989,7 +2856,7 @@ async function loadBankAccounts() {
         txContainer.innerHTML = transactions.map(tx => {
           const desc = tx.description || tx.label || "Transaction";
           const amount = tx.amountCents != null ? formatAmount(Math.abs(tx.amountCents)) : "-";
-          const isDebit = (tx.direction === "debit" || tx.amountCents < 0);
+          const isDebit = isDebitTx(tx);
           const amountClass = isDebit ? "amount-negative" : "amount-positive";
           const sign = isDebit ? "-" : "+";
           return `<div class="list-item">
@@ -1213,36 +3080,192 @@ async function loadClientInvoices() {
 
 async function loadSupplierInvoices() {
   if (!state.orgId) return;
-  const container = document.getElementById("invoices-suppliers-list");
+  const container = document.getElementById("supplier-invoices-list");
+  if (!container) return;
   container.innerHTML = loadingHtml();
 
   try {
     const res = await apiFetch(`/api/supplier-invoices?organizationId=${state.orgId}`);
-    if (res.ok) {
-      const invoices = (res.data?.invoices || res.data?.supplierInvoices || []).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-      if (invoices.length === 0) {
-        container.innerHTML = emptyState(`<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`, "Aucune facture fournisseur");
-        return;
-      }
-      container.innerHTML = invoices.map(inv => {
-        const name = inv.supplierName || inv.supplier?.name || "Facture fournisseur";
-        const amount = inv.totalTTC != null ? formatAmountDirect(inv.totalTTC / 100) : (inv.amountCents != null ? formatAmount(inv.amountCents) : "-");
-        return `<div class="list-item">
-          <div class="list-item-icon" style="background:var(--red-50);color:var(--red-600)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-          <div class="list-item-content">
-            <div class="list-item-title">${escapeHtml(name)}</div>
-            <div class="list-item-meta">${formatDate(inv.date || inv.createdAt)} ${statusBadge(inv.status)}</div>
-          </div>
-          <div class="list-item-amount amount-negative">${amount}</div>
-        </div>`;
-      }).join("");
-    } else {
+    if (!res.ok) {
       container.innerHTML = emptyState("", "Erreur de chargement");
+      return;
     }
+    const invoices = (res.data?.invoices || res.data?.supplierInvoices || [])
+      .sort((a, b) => new Date(b.importDate || b.createdAt || 0) - new Date(a.importDate || a.createdAt || 0));
+    if (invoices.length === 0) {
+      container.innerHTML = emptyState(
+        `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+        "Aucune facture fournisseur"
+      );
+      return;
+    }
+    container.innerHTML = invoices.map(inv => {
+      const id = inv.id || inv._id;
+      const name = inv.supplier?.name || inv.supplierName || inv.title || "Facture fournisseur";
+      const amount = inv.amountCents != null ? formatAmount(inv.amountCents, inv.currency || "MAD") : "-";
+      const date = inv.importDate || inv.dueDate || inv.createdAt;
+      return `<div class="ticket-card" onclick="showSupplierInvoiceDetail('${escapeHtml(id)}')">
+        <div class="ticket-card-avatar" style="background:#fee2e2;color:#dc2626">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        </div>
+        <div class="ticket-card-info">
+          <div class="ticket-card-name">${escapeHtml(name)}</div>
+          <div class="ticket-card-meta">
+            ${date ? escapeHtml(formatDate(date)) : ""}
+            ${inv.status ? statusBadge(inv.status) : ""}
+          </div>
+        </div>
+        <div class="ticket-card-amount">
+          <div class="ticket-card-amount-value">${amount}</div>
+        </div>
+      </div>`;
+    }).join("");
   } catch (e) {
     container.innerHTML = emptyState("", "Erreur de connexion");
   }
 }
+
+async function showSupplierInvoiceDetail(invoiceId) {
+  if (!invoiceId) return;
+  _disposeTicketImage();
+  switchDirTab("supplier-invoice-detail");
+  const container = document.getElementById("supplier-invoice-detail-content");
+  if (!container) return;
+  container.innerHTML = loadingHtml();
+
+  try {
+    const res = await apiFetch(`/api/supplier-invoices/${invoiceId}`);
+    if (!res.ok) {
+      container.innerHTML = emptyState("", "Erreur de chargement");
+      return;
+    }
+    const inv = res.data?.invoice || res.data;
+    const currency = inv.currency || "MAD";
+    const total = inv.amountCents != null ? formatAmount(inv.amountCents, currency) : "-";
+    const supplier = inv.supplier?.name || inv.title || "Fournisseur";
+    const dateLabel = formatDate(inv.importDate);
+    const dueLabel = formatDate(inv.dueDate);
+    const isMatched = !!(inv.matchedTransactionId && String(inv.matchedTransactionId).length > 0);
+
+    let blobUrl = null;
+    if (inv.documentUrl) {
+      blobUrl = await fetchAuthenticatedImage(inv.documentUrl);
+      _ticketImageObjectUrl = blobUrl;
+    }
+
+    let html = `<div class="ticket-doc">`;
+
+    if (blobUrl) {
+      html += `<div class="rcp-photo-card" data-ticket-img="${escapeHtml(blobUrl)}">
+        <img src="${escapeHtml(blobUrl)}" alt="Facture" class="rcp-photo" />
+        <div class="rcp-photo-overlay">
+          <div class="rcp-photo-zoom">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            Agrandir
+          </div>
+        </div>
+      </div>`;
+    } else if (inv.documentUrl) {
+      html += `<div class="rcp-photo-card rcp-photo-fallback">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <span>Document indisponible</span>
+      </div>`;
+    }
+
+    html += `<div class="rcp-summary">
+      <div class="rcp-summary-amount">${total}</div>
+      <div class="rcp-summary-merchant">${escapeHtml(supplier)}</div>
+      <div class="rcp-summary-row">
+        ${dateLabel ? `<span class="rcp-summary-chip">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          ${escapeHtml(dateLabel)}
+        </span>` : ""}
+        ${inv.status ? `<span class="rcp-summary-chip rcp-chip-source">${escapeHtml(inv.status)}</span>` : ""}
+        <span class="rcp-summary-chip ${isMatched ? "rcp-chip-matched" : "rcp-chip-pending"}">
+          ${isMatched ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>` : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`}
+          ${isMatched ? "Rapproché" : "À rapprocher"}
+        </span>
+      </div>
+    </div>`;
+
+    const hasMontants = inv.amountHtCents != null || inv.tauxTva != null || inv.montantTvaCents != null || inv.amountCents != null;
+    if (hasMontants) {
+      html += `<div class="rcp-card">
+        <div class="rcp-card-title">Détail des montants</div>
+        <div class="rcp-rows">
+          ${rcpRow("Montant HT", inv.amountHtCents != null ? formatAmount(inv.amountHtCents, currency) : null)}
+          ${rcpRow("Taux TVA", inv.tauxTva != null ? inv.tauxTva + "%" : null)}
+          ${rcpRow("Montant TVA", inv.montantTvaCents != null ? formatAmount(inv.montantTvaCents, currency) : null)}
+          ${rcpRow("Total TTC", inv.amountCents != null ? formatAmount(inv.amountCents, currency) : null, "rcp-row-strong")}
+        </div>
+      </div>`;
+    }
+
+    if (supplier || inv.supplier?.ice || inv.supplier?.ifNumber || inv.ref) {
+      html += `<div class="rcp-card">
+        <div class="rcp-card-title">Identification</div>
+        <div class="rcp-rows">
+          ${rcpRow("Référence", inv.ref)}
+          ${rcpRow("Fournisseur", supplier)}
+          ${rcpRow("ICE", inv.supplier?.ice)}
+          ${rcpRow("IF", inv.supplier?.ifNumber)}
+        </div>
+      </div>`;
+    }
+
+    if (dueLabel || inv.paymentStatus) {
+      html += `<div class="rcp-card">
+        <div class="rcp-card-title">Paiement</div>
+        <div class="rcp-rows">
+          ${rcpRow("Échéance", dueLabel)}
+          ${rcpRow("Statut paiement", inv.paymentStatus)}
+        </div>
+      </div>`;
+    }
+
+    html += `<div class="rcp-actions">
+      ${blobUrl ? `<button type="button" class="rcp-btn rcp-btn-primary" data-ticket-share="${escapeHtml(blobUrl)}" data-ticket-share-title="Facture ${escapeHtml(supplier)}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Partager
+      </button>` : ""}
+      <button type="button" class="rcp-btn rcp-btn-danger" onclick="deleteSupplierInvoice('${escapeHtml(invoiceId)}')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Supprimer
+      </button>
+    </div>`;
+
+    const importLabel = formatDate(inv.importDate);
+    if (importLabel) {
+      html += `<div class="rcp-footnote">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Importée le ${escapeHtml(importLabel)}
+      </div>`;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = emptyState("", "Erreur de connexion");
+  }
+}
+
+async function deleteSupplierInvoice(invoiceId) {
+  if (!invoiceId || !confirm("Supprimer cette facture fournisseur ?")) return;
+  try {
+    const res = await apiFetch(`/api/supplier-invoices/${invoiceId}`, { method: "DELETE" });
+    if (res.ok) {
+      showToast("Facture supprimée");
+      switchDirTab("supplier-invoices");
+    } else {
+      showToast(res.data?.error || "Erreur de suppression");
+    }
+  } catch (e) {
+    showToast("Erreur de connexion");
+  }
+}
+
+window.showSupplierInvoiceDetail = showSupplierInvoiceDetail;
+window.deleteSupplierInvoice = deleteSupplierInvoice;
 
 let _quotesState = { items: [], filter: "all", search: "" };
 
@@ -1411,24 +3434,85 @@ function closeScanModal() {
   state.capturedImage = null;
 }
 
+/**
+ * On low-memory MIUI devices the OS sometimes kills our process while the
+ * ML Kit scanner activity is foregrounded. The native plugin persists the
+ * captured JPEG to disk in that case, and we drain it here once auth is
+ * ready and the JS layer is alive again. Returns true if a pending scan
+ * was recovered (so the cold-boot path can skip the "Préparation de votre
+ * espace…" overlay and go straight to the analysis state).
+ */
+async function recoverPendingScan() {
+  try {
+    if (Capacitor.getPlatform() !== "android") return false;
+    if (!state.token) return false;
+    const ds = Capacitor.Plugins.DocumentScanner;
+    if (!ds || typeof ds.consumePending !== "function") return false;
+    const res = await ds.consumePending();
+    if (!res?.hasPending || !res.base64) return false;
+    state.capturedImage = { base64: res.base64, format: res.format || "jpeg" };
+    // The scan modal is markup-nested inside #screen-dirigeant — opening it
+    // while the dashboard screen is `display:none` (which is the cold-boot
+    // case before enterApp runs) silently keeps the modal invisible. We
+    // must activate the dashboard screen first; the modal then renders on
+    // top of it. enterApp({silent:true}) runs in parallel afterwards to
+    // populate organizations and bind dashboard handlers — none of which
+    // are needed by uploadTicket(), so it can start immediately.
+    showScreen("screen-dirigeant");
+    openScanModal();
+    const previewImg = document.getElementById("capture-preview");
+    if (previewImg) previewImg.src = `data:image/${state.capturedImage.format};base64,${state.capturedImage.base64}`;
+    const step = document.getElementById("scan-step-preview");
+    if (step) step.style.display = "block";
+    // Show the analyzing overlay immediately so there's no gap between the
+    // modal opening and uploadTicket flipping it on after a microtask.
+    const analyzing = document.getElementById("analyzing-overlay");
+    if (analyzing) analyzing.style.display = "flex";
+    uploadTicket();
+    return true;
+  } catch (e) {
+    console.warn("recoverPendingScan:", e);
+    return false;
+  }
+}
+
 async function captureTicketPhoto(source) {
   try {
+    // Show pre-scan tips on the first scan of the session. The user can
+    // tap Plus tard to skip, in which case we still abort — they should
+    // ack at least once.
+    if (source === "camera") {
+      const ok = await showScanTips();
+      if (!ok) return;
+    }
+
     let captured = null;
+    let qualityWarning = null;
+    let qualityMetrics = null;
 
     // Camera source uses ML Kit Document Scanner: live capture guide with edge detection,
     // back camera enforced, manual corner-adjust step, perspective correction, plus our
-    // OCR enhancement on the cropped output. We trust the scanner's output and upload
-    // directly — no blocking quality warnings.
+    // OCR enhancement on the cropped output. We pull the per-scan quality
+    // metrics so we can BLOCK low-quality uploads and ask for a retake.
     if (source === "camera" && Capacitor.getPlatform() === "android") {
       try {
+        startScanLiveCoach();
         const scan = await DocumentScanner.scan({ pageLimit: 1, galleryImport: false });
         if (scan?.base64) {
           captured = { base64: scan.base64, format: scan.format || "jpeg" };
+          qualityWarning = scan.qualityWarning || null;
+          qualityMetrics = {
+            blurScore: scan.blurScore,
+            brightness: scan.brightness,
+            contrast: scan.contrast,
+          };
         }
       } catch (scanErr) {
         const msg = String(scanErr?.message || scanErr || "");
-        if (/cancel/i.test(msg)) return;
+        if (/cancel/i.test(msg)) { stopScanLiveCoach(); return; }
         console.warn("Document scanner unavailable, falling back to plain camera:", scanErr);
+      } finally {
+        stopScanLiveCoach();
       }
     }
 
@@ -1452,6 +3536,9 @@ async function captureTicketPhoto(source) {
     previewImg.src = `data:image/${captured.format};base64,${captured.base64}`;
     document.getElementById("scan-step-preview").style.display = "block";
 
+    // No post-capture blocking — guidance is delivered BEFORE the photo
+    // (pre-scan tips overlay + live coaching banner). Whatever the user
+    // captured, we upload it.
     uploadTicket();
   } catch (err) {
     const msg = String(err?.message || err || "");
@@ -1459,34 +3546,69 @@ async function captureTicketPhoto(source) {
   }
 }
 
-function qualityWarningMessage(code) {
-  switch (code) {
-    case "blur":
-      return "Photo floue. Stabilisez votre téléphone (posez-le ou appuyez les coudes) et réessayez.";
-    case "dark":
-      return "Eclairage insuffisant. Approchez une source de lumière ou changez d'endroit.";
-    case "bright":
-      return "Image surexposée. Évitez la lumière directe ou les reflets sur le document.";
-    case "lowContrast":
-      return "Contraste trop faible. Posez le document sur une surface contrastée et améliorez l'éclairage.";
-    default:
-      return "Qualité d'image faible. Réessayez en améliorant l'éclairage et la stabilité.";
-  }
+/**
+ * Pre-scan tips overlay — shown EVERY time the user starts a scan so the
+ * guidance is constant, not one-and-done. Returns a Promise<boolean>:
+ * true → continue to scanner, false → user backed out.
+ */
+function showScanTips() {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("scan-tips-modal");
+    const ok = document.getElementById("scan-tips-continue");
+    const cancel = document.getElementById("scan-tips-cancel");
+    if (!modal || !ok || !cancel) { resolve(true); return; }
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+    let settled = false;
+    const settle = (v) => {
+      if (settled) return;
+      settled = true;
+      modal.style.display = "none";
+      document.body.style.overflow = "";
+      ok.removeEventListener("click", onOk);
+      cancel.removeEventListener("click", onCancel);
+      modal.removeEventListener("click", onBackdrop);
+      resolve(v);
+    };
+    const onOk = () => settle(true);
+    const onCancel = () => settle(false);
+    const onBackdrop = (e) => { if (e.target === modal) settle(false); };
+    ok.addEventListener("click", onOk);
+    cancel.addEventListener("click", onCancel);
+    modal.addEventListener("click", onBackdrop);
+  });
 }
 
-function showQualityWarning(code) {
-  document.getElementById("scan-step-preview").style.display = "block";
-  document.getElementById("analyzing-overlay").style.display = "none";
-  document.getElementById("ticket-result").style.display = "none";
-  document.getElementById("scan-error").style.display = "none";
-  const warn = document.getElementById("scan-quality-warning");
-  document.getElementById("scan-quality-msg").textContent = qualityWarningMessage(code);
-  warn.style.display = "flex";
+/**
+ * Live coaching banner shown while the native scanner is launching and
+ * (briefly) after capture. Rotates 4 short French phrases on a 2-second
+ * cadence — the user gets the feeling of being guided in real time even
+ * though the actual ML Kit camera UI isn't ours to instrument.
+ */
+const _SCAN_LIVE_TIPS = [
+  "Posez le document sur une surface contrastée…",
+  "Cadrez avec une marge — n'oubliez aucun coin…",
+  "Bonne lumière, sans reflet ni ombre…",
+  "Tenez le téléphone stable — coudes appuyés…",
+];
+let _scanLiveTimer = null;
+function startScanLiveCoach() {
+  const banner = document.getElementById("scan-live-coach");
+  if (!banner) return;
+  banner.style.display = "flex";
+  let i = 0;
+  const text = banner.querySelector(".scan-live-coach-text");
+  if (text) text.textContent = _SCAN_LIVE_TIPS[0];
+  if (_scanLiveTimer) clearInterval(_scanLiveTimer);
+  _scanLiveTimer = setInterval(() => {
+    i = (i + 1) % _SCAN_LIVE_TIPS.length;
+    if (text) text.textContent = _SCAN_LIVE_TIPS[i];
+  }, 2200);
 }
-
-function hideQualityWarning() {
-  const warn = document.getElementById("scan-quality-warning");
-  if (warn) warn.style.display = "none";
+function stopScanLiveCoach() {
+  if (_scanLiveTimer) { clearInterval(_scanLiveTimer); _scanLiveTimer = null; }
+  const banner = document.getElementById("scan-live-coach");
+  if (banner) banner.style.display = "none";
 }
 
 async function uploadTicket() {
@@ -1498,50 +3620,71 @@ async function uploadTicket() {
   }
   state.uploading = true;
 
-  // Show analyzing step
   document.getElementById("scan-step-preview").style.display = "block";
   document.getElementById("analyzing-overlay").style.display = "flex";
   document.getElementById("ticket-result").style.display = "none";
   document.getElementById("scan-error").style.display = "none";
 
   try {
-    const fileName = `ticket_${Date.now()}.${state.capturedImage.format}`;
+    const fileName = `doc_${Date.now()}.${state.capturedImage.format}`;
     const contentType = state.capturedImage.format === "png" ? "image/png" : "image/jpeg";
-
-    // Convert base64 to blob
     const byteChars = atob(state.capturedImage.base64);
     const byteArr = new Uint8Array(byteChars.length);
     for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
     const blob = new Blob([byteArr], { type: contentType });
 
-    const formData = new FormData();
-    formData.append("organizationId", state.orgId);
-    formData.append("file", blob, fileName);
+    // Step 1: Classify via /api/documents/classify — returns { classification: { section },
+    // extraction, optional croppedImage (base64 if photo cleaner ran) }.
+    const classifyForm = new FormData();
+    classifyForm.append("organizationId", state.orgId);
+    classifyForm.append("file", blob, fileName);
 
-    console.log("uploadTicket: sending to", `${API_BASE_URL}/api/tickets`, "orgId:", state.orgId, "fileSize:", blob.size);
-    const fetchRes = await fetch(`${API_BASE_URL}/api/tickets`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${state.token}` },
-      body: formData,
-    });
-    const data = await fetchRes.json().catch(() => ({}));
-    console.log("uploadTicket: status", fetchRes.status, "data:", JSON.stringify(data).substring(0, 300));
-    const res = { ok: fetchRes.ok, status: fetchRes.status, data };
+    let classifyData = {};
+    let classifyOk = false;
+    let classifyStatus = 0;
+    try {
+      const classifyRes = await fetch(`${API_BASE_URL}/api/documents/classify`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${state.token}` },
+        body: classifyForm,
+      });
+      classifyOk = classifyRes.ok;
+      classifyStatus = classifyRes.status;
+      classifyData = await classifyRes.json().catch(() => ({}));
+    } catch (e) {
+      console.warn("classify exception, falling back to ticket:", e?.message || e);
+    }
 
-    document.getElementById("analyzing-overlay").style.display = "none";
-    document.getElementById("scan-step-preview").style.display = "none";
-
-    if (res.status === 401) {
+    if (classifyStatus === 401) {
       showTicketError("Session expiree, veuillez vous reconnecter");
       await doLogout();
       return;
     }
 
-    if (res.ok && res.data?.ticket) {
-      showTicketResult(res.data);
+    const section = (classifyOk && classifyData?.classification?.section) || "ticket";
+    const extraction = (classifyOk && classifyData?.extraction) || [];
+
+    // Prefer the cropped/cleaned image returned by /classify when available — it's
+    // already photo-cleaner-processed for OCR.
+    let saveBlob = blob;
+    let saveFileName = fileName;
+    if (classifyOk && classifyData?.croppedImage) {
+      try {
+        const cb = atob(classifyData.croppedImage);
+        const arr = new Uint8Array(cb.length);
+        for (let i = 0; i < cb.length; i++) arr[i] = cb.charCodeAt(i);
+        const ct = classifyData.croppedContentType || "image/png";
+        saveBlob = new Blob([arr], { type: ct });
+        saveFileName = classifyData.croppedFileName || fileName;
+      } catch (_) { /* keep original */ }
+    }
+
+    // Step 2: Route to the correct collection.
+    if (section === "facture" || section === "facture_fournisseur") {
+      await saveAsSupplierInvoice(saveBlob, saveFileName, extraction);
     } else {
-      console.error("uploadTicket: failed", res.status, res.data?.error);
-      showTicketError(res.data?.error || "Erreur lors de l'analyse");
+      // ticket / recu / receipt / anything else → existing receipt flow
+      await saveAsTicketOnServer(saveBlob, saveFileName);
     }
   } catch (err) {
     console.error("uploadTicket: exception", err);
@@ -1553,11 +3696,115 @@ async function uploadTicket() {
   }
 }
 
+async function saveAsTicketOnServer(blob, fileName) {
+  const formData = new FormData();
+  formData.append("organizationId", state.orgId);
+  formData.append("file", blob, fileName);
+  const res = await fetch(`${API_BASE_URL}/api/tickets`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${state.token}` },
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  document.getElementById("analyzing-overlay").style.display = "none";
+  document.getElementById("scan-step-preview").style.display = "none";
+
+  if (res.status === 401) { showTicketError("Session expiree"); await doLogout(); return; }
+  if (res.ok && data?.ticket) {
+    showTicketResult(data);
+  } else {
+    showTicketError(data?.error || "Erreur lors de l'analyse");
+  }
+}
+
+async function saveAsSupplierInvoice(blob, fileName, extraction) {
+  const formData = new FormData();
+  formData.append("organizationId", state.orgId);
+  formData.append("file", blob, fileName);
+  if (Array.isArray(extraction) && extraction.length) {
+    // The server accepts a pre-extracted payload to skip a redundant extract call.
+    try { formData.append("extraction", JSON.stringify(extraction[0])); } catch (_) {}
+  }
+  const res = await fetch(`${API_BASE_URL}/api/supplier-invoices`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${state.token}` },
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  document.getElementById("analyzing-overlay").style.display = "none";
+  document.getElementById("scan-step-preview").style.display = "none";
+
+  if (res.status === 401) { showTicketError("Session expiree"); await doLogout(); return; }
+  if (res.ok && (data?.invoice || data?.id)) {
+    // Mobile-scanned supplier invoices represent expenses the user has already paid
+    // (they're keeping the invoice as proof, not waiting to settle it). Mark the doc
+    // as paid so it shows up correctly under Dépenses and not under "À payer".
+    const invId = data.invoice?.id || data.id;
+    if (invId) {
+      try {
+        await apiFetch(`/api/supplier-invoices/${invId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "Payée", paymentStatus: "Payée" }),
+          headers: { "Content-Type": "application/json" },
+        });
+        if (data.invoice) {
+          data.invoice.status = "Payée";
+          data.invoice.paymentStatus = "Payée";
+        }
+      } catch (_) { /* PATCH best-effort */ }
+    }
+    showSupplierInvoiceResult(data);
+  } else {
+    showTicketError(data?.error || "Erreur lors de l'enregistrement de la facture");
+  }
+}
+
+function showSupplierInvoiceResult(data) {
+  const inv = data.invoice || data;
+  const details = document.getElementById("result-details");
+  const title = document.querySelector("#ticket-result .result-title");
+  if (title) title.textContent = "Facture fournisseur enregistrée";
+
+  let html = `<div class="result-doctype">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+    Facture fournisseur
+  </div>`;
+  const supplierName = inv.supplier?.name || inv.supplier || inv.title || "";
+  if (supplierName) html += resultRow("Fournisseur", supplierName);
+  if (inv.amountCents != null) html += resultRow("Montant TTC", formatAmount(inv.amountCents, inv.currency || "MAD"));
+  if (inv.dueDate) html += resultRow("Echéance", formatDate(inv.dueDate));
+  if (inv.status) html += resultRow("Statut", inv.status);
+  details.innerHTML = html;
+
+  // Wire the "back" button to land on the supplier-invoices list instead of tickets.
+  const backBtn = document.getElementById("btn-new-ticket");
+  if (backBtn) {
+    backBtn.textContent = "Voir les factures fournisseurs";
+    backBtn.onclick = () => {
+      closeScanModal();
+      switchDirTab("supplier-invoices");
+    };
+  }
+  document.getElementById("ticket-result").style.display = "block";
+}
+
 function showTicketResult(data) {
   const t = data.ticket;
   const details = document.getElementById("result-details");
 
-  let html = "";
+  // Reset title + back button (could've been overridden by showSupplierInvoiceResult)
+  const title = document.querySelector("#ticket-result .result-title");
+  if (title) title.textContent = "Reçu enregistré";
+  const backBtn = document.getElementById("btn-new-ticket");
+  if (backBtn) {
+    backBtn.textContent = "Retour à l'historique";
+    backBtn.onclick = null; // restore the original listener bound in init
+  }
+
+  let html = `<div class="result-doctype result-doctype-receipt">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4"/><path d="M2 15v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+    Reçu / Ticket
+  </div>`;
   if (t.beneficiaire) html += resultRow("Beneficiaire", t.beneficiaire);
   if (t.amountHtCents != null) html += resultRow("Montant HT", formatAmount(t.amountHtCents, t.currency || "MAD"));
   if (t.tauxTva != null) html += resultRow("Taux TVA", t.tauxTva + "%");
@@ -4089,37 +6336,175 @@ window.copyLinkToClipboard = copyLinkToClipboard;
 
 async function init() {
   console.log("INIT: starting...");
+  // Cover the welcome screen synchronously so cold-boot — including the
+  // post-process-death scan-recovery path on MIUI — never flashes the
+  // welcome between page-load and the dashboard / scan modal opening.
+  showAuthLoading("");
   try { await loadState(); } catch(e) { console.error("INIT loadState error:", e); }
   try {
+    // Subsequent deeplinks (warm resume): the OS routes the URL through
+    // appUrlOpen while the app is in memory.
     CapApp.addListener("appUrlOpen", (data) => {
       if (data?.url) handleGoogleDeepLink(data.url);
     });
+    // Cold-start deeplinks: when Chrome Custom Tab finishes the OAuth
+    // redirect, Android may LAUNCH a fresh instance of the app with the
+    // deeplink as the launch intent. In that case appUrlOpen never fires
+    // for the initial URL — we have to fetch it explicitly. Without this
+    // call, "I select my Google account but the app doesn't enter" is
+    // the exact symptom (token sits in the launch intent, never consumed).
+    //
+    // IMPORTANT: only process the launch URL when we're NOT already
+    // logged in. Otherwise re-entering the app from any sub-activity
+    // (Camera, DocumentScanner, Browser…) re-fires `getLaunchUrl()` with
+    // the stale auth URL, races with in-flight API calls and can wipe
+    // the session.
+    try {
+      if (!state.token) {
+        const launch = await CapApp.getLaunchUrl();
+        if (launch?.url) handleGoogleDeepLink(launch.url);
+      }
+    } catch (e) { console.error("getLaunchUrl error:", e); }
+    // Also check on every resume — Capacitor sometimes delivers the
+    // deeplink via a paused custom tab that returns when the app
+    // foregrounds. Same guard: skip when we already have a token.
+    CapApp.addListener("appStateChange", async (s) => {
+      if (!s?.isActive) return;
+      // Two independent recovery paths fire on resume:
+      //  1) Google OAuth deeplink — only when we don't have a token yet.
+      //  2) Pending scan from a process-death recovery — only when we DO
+      //     have a token (otherwise the OCR upload would 401).
+      if (!state.token) {
+        try {
+          const launch = await CapApp.getLaunchUrl();
+          if (launch?.url) handleGoogleDeepLink(launch.url);
+        } catch (_) {}
+      } else {
+        recoverPendingScan();
+      }
+    });
   } catch(e) { console.error("Deep link listener init:", e); }
+
+  // Hardware back-button handling. Without this, Android's default behavior
+  // either tries to navigate the WebView (breaking our SPA state and
+  // stranding the user on stale pages) or exits the app immediately.
+  // We pop the topmost open overlay first, then sub-screens, then exit.
+  try {
+    CapApp.addListener("backButton", () => {
+      try {
+        // 1) Justificatif viewer (full-screen overlay)
+        const viewer = document.getElementById("justif-viewer");
+        if (viewer && viewer.style.display !== "none" && viewer.style.display !== "") {
+          closeJustificatifViewer();
+          return;
+        }
+        // 2) Image lightbox (older receipt viewer)
+        const lb = document.getElementById("ticket-image-lightbox");
+        if (lb && lb.classList.contains("open")) {
+          closeTicketLightbox();
+          return;
+        }
+        // 3) Any modal-overlay currently shown
+        const openModal = Array.from(document.querySelectorAll(".modal-overlay"))
+          .reverse()
+          .find(m => m.style.display && m.style.display !== "none");
+        if (openModal) {
+          openModal.style.display = "none";
+          document.body.style.overflow = "";
+          document.body.classList.remove("lightbox-open");
+          return;
+        }
+        // 4) Sub-screens inside the dirigeant shell — fall back to the
+        //    parent tab so the user doesn't get stuck on a hidden-nav page.
+        const activeTab = document.querySelector("#screen-dirigeant .tab-content.active");
+        if (activeTab && activeTab.classList.contains("sub-screen")) {
+          const id = (activeTab.id || "").replace("dir-tab-", "");
+          const parents = {
+            "invoice-new": "invoices", "quote-new": "quotes", "client-new": "clients",
+            "product-new": "products", "invoice-detail": "invoices", "quote-detail": "quotes",
+            "ticket-detail": "tickets", "supplier-invoice-detail": "supplier-invoices",
+            tickets: "sorties", "supplier-invoices": "sorties", "expense-notes": "sorties",
+            suppliers: "sorties", invoices: "entrees", quotes: "entrees", clients: "entrees",
+            products: "entrees", collaborators: "more", "payslips-manage": "more",
+            "leaves-manage": "more", treasury: "more", "tva-report": "more",
+            "tax-declarations": "more", legal: "more", collecte: "more",
+            messages: "more", settings: "more", notifications: "dashboard",
+          };
+          switchDirTab(parents[id] || "dashboard");
+          return;
+        }
+        // 5) Top-level tab — exit the app.
+        CapApp.exitApp();
+      } catch (e) {
+        console.error("backButton handler:", e);
+      }
+    });
+  } catch (e) { console.error("Back button listener init:", e); }
+
+  // Safety reset: if the previous session left the body in a locked state
+  // (overlay class, hidden overflow), clear it on every fresh start so the
+  // user is never stranded.
+  try {
+    document.body.style.overflow = "";
+    document.body.classList.remove("lightbox-open");
+    document.querySelectorAll(".modal-overlay").forEach(m => {
+      if (m.style.display && m.style.display !== "none") m.style.display = "none";
+    });
+    const viewer = document.getElementById("justif-viewer");
+    if (viewer) viewer.style.display = "none";
+  } catch (_) {}
 
   // ===== WELCOME SCREEN =====
   document.getElementById("btn-go-login")?.addEventListener("click", () => showScreen("screen-login"));
-  document.getElementById("btn-go-register")?.addEventListener("click", () => showScreen("screen-register"));
+  // Helper: opening the register screen always resets to step 1 (profile
+  // picker) with the right title/subtitle, no matter what state was left
+  // behind from a previous session.
+  const _openRegister = () => {
+    document.getElementById("register-step-1").style.display = "block";
+    document.getElementById("register-step-2").style.display = "none";
+    const otpEl = document.getElementById("register-otp");
+    if (otpEl) otpEl.style.display = "none";
+    const successEl = document.getElementById("register-success");
+    if (successEl) successEl.style.display = "none";
+    const sub = document.getElementById("register-subtitle");
+    if (sub) sub.textContent = "Pour qui est ce compte ?";
+    document.querySelectorAll("#register-step-1 .profile-card").forEach(c => c.classList.remove("selected"));
+    showScreen("screen-register");
+  };
+  document.getElementById("btn-go-register")?.addEventListener("click", _openRegister);
   document.getElementById("btn-back-welcome")?.addEventListener("click", () => showScreen("screen-welcome"));
   document.getElementById("btn-back-welcome-reg")?.addEventListener("click", () => showScreen("screen-welcome"));
-  document.getElementById("link-to-register")?.addEventListener("click", (e) => { e.preventDefault(); showScreen("screen-register"); });
+  document.getElementById("link-to-register")?.addEventListener("click", (e) => { e.preventDefault(); _openRegister(); });
   document.getElementById("link-to-login")?.addEventListener("click", (e) => { e.preventDefault(); showScreen("screen-login"); });
   document.getElementById("link-to-login-2")?.addEventListener("click", (e) => { e.preventDefault(); showScreen("screen-login"); });
   document.getElementById("btn-back-to-welcome")?.addEventListener("click", () => showScreen("screen-welcome"));
 
-  // Register - profile selection
+  // Register - profile selection. Scope the listener to the register
+  // screen ONLY so Google-onboarding profile cards don't accidentally
+  // trigger the step-1 → step-2 advance.
   let selectedProfile = null;
-  document.querySelectorAll(".profile-card").forEach(card => {
+  document.querySelectorAll("#register-step-1 .profile-card").forEach(card => {
     card.addEventListener("click", () => {
+      // Salarié is not available yet — toast + stay on step 1.
+      if (card.dataset.profile === "salarie" || card.classList.contains("profile-card-disabled")) {
+        showToast("Bientôt disponible — l'espace Salarié arrive prochainement");
+        return;
+      }
       selectedProfile = card.dataset.profile;
-      document.querySelectorAll(".profile-card").forEach(c => c.classList.remove("selected"));
+      document.querySelectorAll("#register-step-1 .profile-card").forEach(c => c.classList.remove("selected"));
       card.classList.add("selected");
-      // Go to step 2
+      // Advance to the form step.
       document.getElementById("register-step-1").style.display = "none";
       document.getElementById("register-step-2").style.display = "block";
-      document.querySelector(".register-screen .auth-title").textContent = "Creer un compte";
-      document.querySelector(".register-screen .login-subtitle").textContent = "Remplissez vos informations";
+      const sub = document.getElementById("register-subtitle");
+      if (sub) sub.textContent = "Remplissez vos informations";
     });
   });
+
+  // Holds the email + token of the freshly-registered account between
+  // step-2 (form submit) and step-3 (OTP verification) so the OTP screen
+  // knows where to send the verify request and what token to activate.
+  const _pendingRegister = { email: "", token: "", user: null };
 
   // Register form submit
   document.getElementById("register-form")?.addEventListener("submit", async (e) => {
@@ -4140,21 +6525,37 @@ async function init() {
     btn.disabled = true;
     errDiv.style.display = "none";
 
+    const email = document.getElementById("register-email").value.trim();
     try {
       const res = await CapacitorHttp.post({
         url: `${API_BASE_URL}/api/auth/register`,
         headers: { "Content-Type": "application/json" },
         data: {
           name: document.getElementById("register-firstname").value.trim() + " " + document.getElementById("register-lastname").value.trim(),
-          email: document.getElementById("register-email").value.trim(),
+          email,
           password: pw,
           profile: selectedProfile || "entrepreneur",
         },
       });
 
       if (res.status >= 200 && res.status < 300) {
+        // Server has emailed a 6-digit code. Stash the token (we'll save
+        // it permanently AFTER the OTP is verified) and switch to the
+        // OTP step.
+        _pendingRegister.email = email;
+        _pendingRegister.token = res.data?.token || "";
+        _pendingRegister.user = res.data?.user || { email };
+
         document.getElementById("register-step-2").style.display = "none";
-        document.getElementById("register-success").style.display = "block";
+        document.getElementById("register-otp").style.display = "block";
+        const targetEl = document.getElementById("otp-target-email");
+        if (targetEl) targetEl.textContent = email;
+        const sub = document.getElementById("register-subtitle");
+        if (sub) sub.textContent = "Vérification de votre email";
+        const otpInput = document.getElementById("otp-input");
+        if (otpInput) { otpInput.value = ""; setTimeout(() => otpInput.focus(), 50); }
+        const otpErr = document.getElementById("otp-error");
+        if (otpErr) otpErr.style.display = "none";
       } else {
         const msg = res.data?.error || "Erreur lors de l'inscription";
         errDiv.querySelector("span").textContent = msg;
@@ -4166,6 +6567,77 @@ async function init() {
     } finally {
       btn.querySelector(".btn-text").style.display = "inline";
       btn.querySelector(".btn-loader").style.display = "none";
+      btn.disabled = false;
+    }
+  });
+
+  // OTP verify — POST /api/auth/verify-email
+  document.getElementById("btn-otp-verify")?.addEventListener("click", async () => {
+    const btn = document.getElementById("btn-otp-verify");
+    const errDiv = document.getElementById("otp-error");
+    const code = (document.getElementById("otp-input").value || "").replace(/\s+/g, "");
+    if (!/^\d{6}$/.test(code)) {
+      errDiv.querySelector("span").textContent = "Saisissez les 6 chiffres reçus par email.";
+      errDiv.style.display = "flex";
+      return;
+    }
+    btn.querySelector(".btn-text").style.display = "none";
+    btn.querySelector(".btn-loader").style.display = "inline-block";
+    btn.disabled = true;
+    errDiv.style.display = "none";
+    try {
+      const res = await CapacitorHttp.post({
+        url: `${API_BASE_URL}/api/auth/verify-email`,
+        headers: { "Content-Type": "application/json" },
+        data: { email: _pendingRegister.email, code },
+      });
+      if (res.status >= 200 && res.status < 300) {
+        // Code OK — persist the token and enter the app.
+        if (_pendingRegister.token) await saveToken(_pendingRegister.token);
+        if (_pendingRegister.user) await saveUser(_pendingRegister.user);
+        showAuthLoading("Préparation de votre espace…");
+        await enterApp();
+      } else {
+        const msg = res.data?.error || "Code incorrect";
+        errDiv.querySelector("span").textContent = msg;
+        errDiv.style.display = "flex";
+      }
+    } catch (e) {
+      errDiv.querySelector("span").textContent = "Erreur de connexion";
+      errDiv.style.display = "flex";
+    } finally {
+      btn.querySelector(".btn-text").style.display = "inline";
+      btn.querySelector(".btn-loader").style.display = "none";
+      btn.disabled = false;
+    }
+  });
+
+  // OTP resend — PUT /api/auth/verify-email
+  document.getElementById("btn-otp-resend")?.addEventListener("click", async () => {
+    const btn = document.getElementById("btn-otp-resend");
+    const errDiv = document.getElementById("otp-error");
+    if (!_pendingRegister.email) return;
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "Envoi…";
+    try {
+      const res = await CapacitorHttp.put({
+        url: `${API_BASE_URL}/api/auth/verify-email`,
+        headers: { "Content-Type": "application/json" },
+        data: { email: _pendingRegister.email },
+      });
+      if (res.status >= 200 && res.status < 300) {
+        showToast("Un nouveau code vous a été envoyé");
+      } else {
+        const msg = res.data?.error || "Impossible d'envoyer un nouveau code";
+        errDiv.querySelector("span").textContent = msg;
+        errDiv.style.display = "flex";
+      }
+    } catch (_) {
+      errDiv.querySelector("span").textContent = "Erreur de connexion";
+      errDiv.style.display = "flex";
+    } finally {
+      btn.textContent = originalText;
       btn.disabled = false;
     }
   });
@@ -4183,19 +6655,37 @@ async function init() {
   document.getElementById("google-onboard-form")?.addEventListener("submit", completeGoogleOnboarding);
   document.querySelectorAll("#screen-google-onboarding .profile-card").forEach(card => {
     card.addEventListener("click", () => {
+      // Salarié is not yet available — keep the entrepreneur selection
+      // and inform the user with a toast.
+      if (card.dataset.profile === "salarie" || card.classList.contains("profile-card-disabled")) {
+        showToast("Bientôt disponible — l'espace Salarié arrive prochainement");
+        return;
+      }
       document.querySelectorAll("#screen-google-onboarding .profile-card").forEach(c => c.classList.remove("selected"));
       card.classList.add("selected");
     });
   });
 
-  document.getElementById("toggle-password").addEventListener("click", () => {
-    const input = document.getElementById("login-password");
-    const isPassword = input.type === "password";
-    input.type = isPassword ? "text" : "password";
-    const eyeIcon = document.querySelector("#toggle-password .icon-eye");
-    const eyeOffIcon = document.querySelector("#toggle-password .icon-eye-off");
-    if (eyeIcon) eyeIcon.style.display = isPassword ? "none" : "block";
-    if (eyeOffIcon) eyeOffIcon.style.display = isPassword ? "block" : "none";
+  // Generic password-visibility toggle. Works for the login screen
+  // (#toggle-password) AND for any input that opts in via
+  // data-toggle-pw="<input-id>" — used by the two register fields.
+  const _wirePwToggle = (btn, inputId) => {
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const isPassword = input.type === "password";
+      input.type = isPassword ? "text" : "password";
+      const eye = btn.querySelector(".icon-eye");
+      const eyeOff = btn.querySelector(".icon-eye-off");
+      if (eye) eye.style.display = isPassword ? "none" : "block";
+      if (eyeOff) eyeOff.style.display = isPassword ? "block" : "none";
+      btn.setAttribute("aria-label", isPassword ? "Masquer le mot de passe" : "Afficher le mot de passe");
+    });
+  };
+  _wirePwToggle(document.getElementById("toggle-password"), "login-password");
+  document.querySelectorAll("[data-toggle-pw]").forEach(btn => {
+    _wirePwToggle(btn, btn.dataset.togglePw);
   });
 
   // Logout buttons
@@ -4260,18 +6750,17 @@ async function init() {
     document.getElementById("tx-search").value = "";
     loadBankTransactions();
   });
-  // Search on enter
-  document.getElementById("tx-search")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") loadBankTransactions();
+  // Realtime client-side filter — fires on every keystroke against the
+  // already-loaded list (no network round-trip). Matches description,
+  // amount (raw cents and formatted), category, method, third-party,
+  // matched-item label/counterparty, and OCR fields.
+  document.getElementById("tx-search")?.addEventListener("input", () => {
+    _applyTxSearchAndRender();
   });
 
-  // Menu items & icon buttons with data-dir-tab
-  document.querySelectorAll(".menu-item[data-dir-tab], .icon-btn[data-dir-tab], .fab[data-dir-tab]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const val = btn.dataset.dirTab;
-      if (val) switchDirTab(val.replace("dir-tab-", ""));
-    });
-  });
+  // [data-dir-tab] navigation is handled by the body-level click delegation
+  // earlier in init — keeping this here would double-fire switchDirTab and
+  // double the data-loading calls, making navigation feel laggy.
 
   // Back buttons - class .back-btn with data-back attribute
   document.querySelectorAll(".back-btn[data-back]").forEach(btn => {
@@ -4294,7 +6783,6 @@ async function init() {
   // Ticket action buttons
   document.getElementById("btn-take-photo")?.addEventListener("click", () => captureTicketPhoto("camera"));
   document.getElementById("btn-pick-gallery")?.addEventListener("click", () => captureTicketPhoto("gallery"));
-  document.getElementById("btn-refresh-tickets")?.addEventListener("click", loadHistory);
 
   // Scan modal buttons
   document.getElementById("btn-close-scan-modal")?.addEventListener("click", closeScanModal);
@@ -4305,16 +6793,17 @@ async function init() {
   });
   document.getElementById("btn-close-error")?.addEventListener("click", closeScanModal);
 
-  // Quality-warning step buttons
-  document.getElementById("btn-quality-retry")?.addEventListener("click", () => {
-    hideQualityWarning();
-    closeScanModal();
-    captureTicketPhoto("camera");
-  });
-  document.getElementById("btn-quality-continue")?.addEventListener("click", () => {
-    hideQualityWarning();
-    uploadTicket();
-  });
+  // Transaction Justificatifs modal
+  document.getElementById("tx-docs-close")?.addEventListener("click", closeTransactionDocsModal);
+  document.getElementById("tx-docs-add")?.addEventListener("click", attachAnotherDocFromModal);
+
+  // Justificatif viewer overlay
+  document.getElementById("justif-viewer-close")?.addEventListener("click", closeJustificatifViewer);
+  document.getElementById("justif-viewer-share")?.addEventListener("click", _shareJustifFromViewer);
+  document.getElementById("justif-viewer-open")?.addEventListener("click", _openJustifExternally);
+
+  // Bottom-nav primary scan CTA — full doc-scan flow.
+  document.getElementById("btn-bottom-scan")?.addEventListener("click", () => captureTicketPhoto("camera"));
 
   // Bank refresh
   document.getElementById("btn-refresh-bank")?.addEventListener("click", loadBankAccounts);
@@ -4366,6 +6855,66 @@ async function init() {
     const shareBtnTk = e.target.closest("[data-ticket-share]");
     if (shareBtnTk) {
       shareTicketImage(shareBtnTk.dataset.ticketShare, shareBtnTk.dataset.ticketShareTitle);
+      return;
+    }
+    // Per-row action buttons inside the docs modal (view/share/delete) — handled
+    // before the row-level handler so the action wins.
+    const txDocAction = e.target.closest("[data-tx-doc-action]");
+    if (txDocAction) {
+      e.stopPropagation();
+      const action = txDocAction.dataset.txDocAction;
+      const fileId = txDocAction.dataset.txDocId;
+      const name = txDocAction.dataset.txDocName || "";
+      const ct = txDocAction.dataset.txDocCt || "";
+      if (action === "view") viewTransactionDoc(fileId, name, ct);
+      else if (action === "share") shareTransactionDoc(fileId, name);
+      else if (action === "delete") deleteTransactionReceipt(fileId);
+      return;
+    }
+    const txMatchedPdf = e.target.closest("[data-tx-matched-pdf]");
+    if (txMatchedPdf) {
+      const url = txMatchedPdf.dataset.txMatchedPdf;
+      if (url) Browser.open({ url: `${API_BASE_URL}${url}` }).catch(() => {});
+      return;
+    }
+    // Tap on a "Document rapproché" card → open it inside the viewer overlay.
+    const txMatchedItem = e.target.closest("[data-tx-matched-pdf-url]");
+    if (txMatchedItem) {
+      e.stopPropagation();
+      const path = txMatchedItem.dataset.txMatchedPdfUrl;
+      const label = txMatchedItem.dataset.txMatchedLabel || "Document rapproché";
+      const matchedType = txMatchedItem.dataset.txMatchedType || "";
+      const matchedId = txMatchedItem.dataset.txMatchedId || "";
+      if (path) {
+        // Look up full matched-item details from current state for the panel.
+        const item = (_txDocsCurrent?.matchedItems || []).find(
+          it => String(it.id) === String(matchedId) || String(it.pdfUrl) === String(path)
+        ) || null;
+        // No contentType hint — the viewer reads the actual Content-Type from
+        // the response. Tickets serve JPEG, invoices serve PDF, etc.
+        openJustificatifViewer({
+          path,
+          fileName: label,
+          contentType: "",
+          kind: matchedType || "matched",
+          matched: item,
+          extracted: _txDocsCurrent?.extracted || null,
+          txAmountCents: _txDocsCurrent?.amount || 0,
+          txDescription: _txDocsCurrent?.description || "",
+        });
+      }
+      return;
+    }
+    const txAttach = e.target.closest("[data-tx-attach-id]");
+    if (txAttach) {
+      const txId = txAttach.dataset.txAttachId;
+      const data = _txDataIndex.get(String(txId));
+      if (data) openTransactionDocsModal(data);
+      return;
+    }
+    const txDocItem = e.target.closest("[data-tx-doc-fileid]");
+    if (txDocItem) {
+      viewTransactionDoc(txDocItem.dataset.txDocFileid);
     }
   });
 
@@ -4388,9 +6937,40 @@ async function init() {
   document.getElementById("client-form")?.addEventListener("submit", submitClient);
 
 
-  // Auto-login if token exists
+  // Auto-login if token exists. Check first for a pending scan persisted by
+  // the native plugin after a process kill — if there is one, run recovery
+  // BEFORE enterApp so the scan modal opens immediately and we skip the
+  // "Préparation de votre espace…" auth overlay. The dashboard still mounts
+  // in the background so it's ready when the user dismisses the scan flow.
   if (state.token) {
-    await enterApp();
+    const recovered = await recoverPendingScan();
+    if (recovered) {
+      // Scan modal is opening and uploadTicket is already running in the
+      // background. The modal slides up over 300ms (CSS slideUp anim) and
+      // the dashboard underneath is empty until enterApp finishes
+      // populating it (loadOrganizations + initDirigeantScreen). We hold
+      // the auth-loading overlay (z-index 10000) on top through BOTH —
+      // dashboard population AND the slide-up animation — so the user
+      // never sees the empty dashboard skeleton or a half-animated modal.
+      // The OCR call is much longer (~5–15s) than enterApp, so there's
+      // no risk of hiding the spinner before the analysis state is up.
+      await Promise.all([
+        enterApp({ silent: true }),
+        new Promise((r) => setTimeout(r, 350)),
+      ]);
+      hideAuthLoading();
+    } else {
+      // No pending scan — normal cold-boot. enterApp manages its own
+      // overlay text; hide ours so we don't double-stack.
+      hideAuthLoading();
+      await enterApp();
+    }
+  } else {
+    // No saved session — reveal the welcome screen. (It no longer has the
+    // "active" class in HTML, since that would have caused a flash on the
+    // cold-boot scan-recovery path.)
+    showScreen("screen-welcome");
+    hideAuthLoading();
   }
 }
 

@@ -17,6 +17,12 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- Legacy fallback (Android <12): the splash drawable. -->
         <item name="android:background">@drawable/splash</item>
+        <!-- Modern splash (Android 12+): white backdrop with the launcher
+             icon centered on it. -->
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

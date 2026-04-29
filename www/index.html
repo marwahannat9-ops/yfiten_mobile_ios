@@ -14,34 +14,63 @@
 <body>
   <div id="app">
 
-    <!-- ==================== WELCOME ==================== -->
-    <div id="screen-welcome" class="screen welcome-screen active">
+    <!-- Full-screen auth loading overlay — shown during login attempts
+         (email + password OR Google deeplink return), and ALSO as the
+         cold-boot cover so the WebView never paints the welcome screen
+         before app.js gets to decide where to route (welcome vs. silent
+         scan-recovery vs. dashboard). JS turns this off once the route
+         is resolved.
+         IMPORTANT: this element is the FIRST visible thing on cold-boot
+         — it must be visible by default in HTML, before any JS runs. -->
+    <div id="auth-loading" class="auth-loading" style="display:flex" aria-hidden="false">
+      <div class="auth-loading-card">
+        <div class="auth-loading-spinner"></div>
+        <p id="auth-loading-text" class="auth-loading-text" style="display:none"></p>
+      </div>
+    </div>
+
+    <!-- ==================== WELCOME ====================
+         No "active" class by default — JS adds it when there's no saved
+         session. Otherwise we'd flash welcome on cold-boot before app.js
+         can hide it (which is what was happening on MIUI after process
+         death + scan recovery). -->
+    <div id="screen-welcome" class="screen welcome-screen">
       <div class="welcome-container">
-        <div class="welcome-top">
-          <div class="welcome-gradient"></div>
+        <div class="welcome-hero">
           <div class="welcome-logo">
             <img src="img/logo.png" alt="Yfiten" />
           </div>
-          <h1 class="welcome-title">La plateforme qui simplifie la vie des <strong>dirigeants</strong> et des <strong>comptables</strong></h1>
-          <p class="welcome-desc">Gerez votre comptabilite, vos factures, vos recus et vos salaries en un seul endroit.</p>
+          <h1 class="welcome-title">
+            La plateforme qui simplifie la vie des
+            <span class="welcome-title-accent">dirigeants</span>
+            et des
+            <span class="welcome-title-accent">comptables</span>
+          </h1>
+          <p class="welcome-desc">Gérez votre comptabilité, vos factures, vos reçus et vos salariés en un seul endroit.</p>
         </div>
         <div class="welcome-features">
           <div class="welcome-feature">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
-            <span>Factures et devis</span>
+            <span class="welcome-feature-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            </span>
+            <span class="welcome-feature-text">Factures et devis</span>
           </div>
           <div class="welcome-feature">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
-            <span>Scanner de recus OCR</span>
+            <span class="welcome-feature-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+            </span>
+            <span class="welcome-feature-text">Scanner OCR de reçus</span>
           </div>
           <div class="welcome-feature">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
-            <span>Gestion bancaire</span>
+            <span class="welcome-feature-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            </span>
+            <span class="welcome-feature-text">Gestion bancaire pro</span>
           </div>
         </div>
         <div class="welcome-actions">
-          <button id="btn-go-login" class="btn-primary">Se connecter</button>
-          <button id="btn-go-register" class="btn-outline">Creer un compte</button>
+          <button id="btn-go-login" class="btn-primary welcome-cta-primary">Se connecter</button>
+          <button id="btn-go-register" class="btn-outline welcome-cta-secondary">Créer un compte</button>
         </div>
       </div>
     </div>
@@ -130,18 +159,19 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
               </div>
               <div class="profile-card-text">
-                <strong>Entrepreneur</strong>
-                <span>Dirigeant, freelance</span>
+                <strong>Dirigeant</strong>
+                <span>Entrepreneur, freelance</span>
               </div>
             </button>
-            <button type="button" class="profile-card" data-profile="accountant">
+            <button type="button" class="profile-card profile-card-disabled" data-profile="salarie">
               <div class="profile-card-icon emerald">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
               </div>
               <div class="profile-card-text">
-                <strong>Expert-comptable</strong>
-                <span>Cabinet comptable</span>
+                <strong>Salarié</strong>
+                <span>Espace collaborateur</span>
               </div>
+              <span class="profile-card-soon">Bientôt</span>
             </button>
           </div>
 
@@ -180,8 +210,8 @@
         <div class="login-logo">
           <img src="img/logo.png" alt="Yfiten" />
         </div>
-        <h2 class="auth-title">Qui etes-vous ?</h2>
-        <p class="login-subtitle">Selectionnez votre profil pour commencer</p>
+        <h2 class="auth-title" id="register-title">Créer un compte</h2>
+        <p class="login-subtitle" id="register-subtitle">Pour qui est ce compte&nbsp;?</p>
 
         <div id="register-step-1" class="register-step">
           <div class="profile-cards">
@@ -190,20 +220,23 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
               </div>
               <div class="profile-card-text">
-                <strong>Entrepreneur</strong>
-                <span>Dirigeant, freelance, auto-entrepreneur</span>
+                <strong>Dirigeant</strong>
+                <span>Entrepreneur, freelance, auto-entrepreneur</span>
               </div>
               <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
             </button>
-            <button class="profile-card" data-profile="accountant">
+            <!-- Salarié — coming soon. Tapping shows a toast and does NOT
+                 advance to step 2. The card is dimmed and carries a
+                 "Bientôt" badge. -->
+            <button class="profile-card profile-card-disabled" data-profile="salarie" type="button">
               <div class="profile-card-icon emerald">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
               </div>
               <div class="profile-card-text">
-                <strong>Expert-comptable</strong>
-                <span>Cabinet comptable, commissaire aux comptes</span>
+                <strong>Salarié</strong>
+                <span>Espace collaborateur</span>
               </div>
-              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              <span class="profile-card-soon">Bientôt</span>
             </button>
           </div>
           <p class="auth-switch">Vous avez deja un compte ? <a id="link-to-login" href="#">Connexion</a></p>
@@ -215,31 +248,83 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
               <span></span>
             </div>
+
             <div class="form-row">
               <div class="input-group">
-                <input type="text" id="register-firstname" placeholder="Prenom" required />
+                <span class="input-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+                <input type="text" id="register-firstname" placeholder="Prénom" required autocomplete="given-name" />
               </div>
               <div class="input-group">
-                <input type="text" id="register-lastname" placeholder="Nom" required />
+                <input type="text" id="register-lastname" placeholder="Nom" required autocomplete="family-name" />
               </div>
             </div>
+
             <div class="input-group">
-              <input type="email" id="register-email" placeholder="Email" required autocomplete="email" />
+              <span class="input-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>
+              </span>
+              <input type="email" id="register-email" placeholder="Adresse email" required autocomplete="email" />
             </div>
+
             <div class="input-group">
-              <input type="password" id="register-password" placeholder="Mot de passe" required />
+              <span class="input-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <input type="password" id="register-password" placeholder="Mot de passe (8 caractères min.)" required autocomplete="new-password" />
+              <button type="button" class="input-action" data-toggle-pw="register-password" aria-label="Afficher le mot de passe">
+                <svg class="icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M1 1l22 22"/></svg>
+              </button>
             </div>
+
             <div class="input-group">
-              <input type="password" id="register-password-confirm" placeholder="Confirmer le mot de passe" required />
+              <span class="input-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <input type="password" id="register-password-confirm" placeholder="Confirmer le mot de passe" required autocomplete="new-password" />
+              <button type="button" class="input-action" data-toggle-pw="register-password-confirm" aria-label="Afficher le mot de passe">
+                <svg class="icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M1 1l22 22"/></svg>
+              </button>
             </div>
+
             <button type="submit" id="register-btn" class="btn-primary">
-              <span class="btn-text">Demander l'acces</span>
+              <span class="btn-text">Créer mon compte</span>
               <span class="btn-loader" style="display:none">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
               </span>
             </button>
           </form>
-          <p class="auth-switch">Vous avez deja un compte ? <a id="link-to-login-2" href="#">Connexion</a></p>
+          <p class="auth-switch">Vous avez déjà un compte ? <a id="link-to-login-2" href="#">Connexion</a></p>
+        </div>
+
+        <div id="register-otp" class="register-step" style="display:none">
+          <div class="otp-icon">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>
+          </div>
+          <h3 class="otp-title">Vérifiez votre email</h3>
+          <p class="otp-subtitle">Nous avons envoyé un code à 6 chiffres à <strong id="otp-target-email"></strong>. Saisissez-le ci-dessous pour activer votre compte.</p>
+
+          <div id="otp-error" class="error-msg" style="display:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span></span>
+          </div>
+
+          <input type="text" id="otp-input" class="otp-input" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" placeholder="••••••" />
+
+          <button type="button" id="btn-otp-verify" class="btn-primary">
+            <span class="btn-text">Vérifier le code</span>
+            <span class="btn-loader" style="display:none">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
+            </span>
+          </button>
+
+          <p class="otp-resend">
+            Vous n'avez rien reçu&nbsp;?
+            <button type="button" id="btn-otp-resend" class="otp-resend-btn">Renvoyer le code</button>
+          </p>
         </div>
 
         <div id="register-success" class="register-step" style="display:none">
@@ -267,12 +352,12 @@
             </div>
           </div>
           <div class="mc-topbar-actions">
-            <button id="btn-quick-scan" class="mc-icon-btn" aria-label="Scanner">
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
-            </button>
             <button id="btn-notifications" class="mc-icon-btn" data-dir-tab="dir-tab-notifications" aria-label="Notifications">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
               <span id="notif-badge" class="badge" style="display:none">0</span>
+            </button>
+            <button id="btn-open-more" class="mc-icon-btn" data-dir-tab="dir-tab-more" aria-label="Paramètres">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
           </div>
         </header>
@@ -379,29 +464,36 @@
 
       <!-- ===== Bank ===== -->
       <div id="dir-tab-bank" class="tab-content">
-        <header class="screen-header">
-          <div class="header-titles">
-            <h1>Comptes pro</h1>
-            <p class="header-subtitle">Comptes, transactions et releves</p>
+        <header class="bank-header">
+          <div class="bank-header-row">
+            <h1 class="bank-header-title">Comptes pro</h1>
           </div>
-          <div style="display:flex;gap:8px">
-            <button id="btn-import-statement" class="icon-btn" title="Importer un releve">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            </button>
-            <button id="btn-refresh-bank" class="icon-btn" title="Actualiser">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
-            </button>
+          <!-- Hero balance card (white) — keeps Import/Refresh hidden in
+               favor of a calmer, single-focus header. -->
+          <div id="bank-balance-card" class="bank-balance-card">
+            <div class="bank-balance-label">Solde total</div>
+            <div class="bank-balance-amount" id="bank-balance-amount">— MAD</div>
+            <div class="bank-balance-meta">
+              <span id="bank-balance-accounts">0 compte</span>
+              <span class="bank-balance-dot"></span>
+              <span id="bank-balance-flow">+0 ce mois</span>
+            </div>
           </div>
+          <!-- Hidden but kept around so the existing JS click handlers
+               (loadHistory refresh, statement-file-input trigger) still
+               wire correctly. -->
+          <button id="btn-import-statement" hidden></button>
+          <button id="btn-refresh-bank" hidden></button>
         </header>
 
         <!-- Hidden file input for PDF import -->
         <input type="file" id="statement-file-input" accept="application/pdf" multiple style="display:none" />
 
-        <div class="main-content">
-          <!-- Segment: Comptes / Transactions / Releves -->
-          <div class="segment-control" id="bank-segment-control">
+        <div class="main-content bank-main">
+          <!-- Segment: Transactions / Relevés -->
+          <div class="segment-control bank-segment-pill" id="bank-segment-control">
             <button class="segment-btn active" data-bank-seg="transactions">Transactions</button>
-            <button class="segment-btn" data-bank-seg="statements">Releves</button>
+            <button class="segment-btn" data-bank-seg="statements">Relevés</button>
           </div>
 
           <!-- === Transactions panel === -->
@@ -501,47 +593,33 @@
         </button>
       </div>
 
-      <!-- ===== Tickets ===== -->
+      <!-- ===== Tickets =====
+           Pro layout: tight header (no refresh — pull-to-refresh is implicit
+           on tab re-entry anyway), Scanner + Importer as a slim segmented
+           bar at the very top, then the document cards as the principal
+           surface. Removed the standalone tips card (guidance is delivered
+           in-flow by the pre-scan tips overlay + live coach banner). -->
       <div id="dir-tab-tickets" class="tab-content sub-screen">
         <header class="screen-header">
           <button class="back-btn" data-back="dir-tab-sorties">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
           </button>
-          <h1>Recus</h1>
-          <button id="btn-refresh-tickets" class="icon-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
-          </button>
+          <h1>Reçus</h1>
+          <span class="header-spacer" aria-hidden="true"></span>
         </header>
         <div class="main-content">
-          <div class="ticket-actions-row">
-            <button id="btn-take-photo" class="ticket-action-btn">
-              <div class="ticket-action-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </div>
+          <div class="ticket-actions-bar">
+            <button id="btn-take-photo" class="ticket-action-pill ticket-action-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
               <span>Scanner</span>
             </button>
-            <button id="btn-pick-gallery" class="ticket-action-btn">
-              <div class="ticket-action-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-              </div>
+            <button id="btn-pick-gallery" class="ticket-action-pill">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
               <span>Importer</span>
             </button>
           </div>
 
-          <div class="scan-tips">
-            <div class="scan-tips-title">Pour un meilleur résultat</div>
-            <ul>
-              <li>Posez le document sur une surface contrastée</li>
-              <li>Si le cadre coupe le document, faites glisser ses coins vers l'extérieur</li>
-              <li>Évitez les ombres et les reflets — bonne lumière diffuse</li>
-              <li>Stabilisez le téléphone avant de capturer pour éviter le flou</li>
-            </ul>
-          </div>
-
-          <div class="section">
-            <h2 class="section-title">Historique</h2>
-            <div id="tickets-list" class="list-container"></div>
-          </div>
+          <div id="tickets-list" class="list-container tickets-list"></div>
         </div>
       </div>
 
@@ -552,7 +630,7 @@
             <button id="btn-close-scan-modal" class="back-btn">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
             </button>
-            <h2>Analyse du recu</h2>
+            <h2>Analyse du document</h2>
           </header>
           <div class="modal-body">
             <div id="scan-step-preview" class="scan-step">
@@ -562,7 +640,7 @@
               <div class="analyzing-content">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" class="spinner"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4" stroke-dashoffset="10"/></svg>
                 <p>Analyse en cours...</p>
-                <p class="analyzing-sub">Extraction des donnees du recu</p>
+                <p class="analyzing-sub">Classification et extraction des données</p>
               </div>
             </div>
             <div id="ticket-result" class="scan-step scan-result" style="display:none">
@@ -573,15 +651,6 @@
               <div id="result-details" class="result-details-card"></div>
               <button id="btn-new-ticket" class="btn-primary btn-full">Retour a l'historique</button>
             </div>
-            <div id="scan-quality-warning" class="scan-step scan-quality" style="display:none">
-              <div class="quality-warn-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              </div>
-              <h3 class="result-title">Qualité insuffisante</h3>
-              <p id="scan-quality-msg" class="quality-warn-msg"></p>
-              <button id="btn-quality-retry" class="btn-primary btn-full">Reessayer</button>
-              <button id="btn-quality-continue" class="btn-text btn-full">Continuer quand même</button>
-            </div>
             <div id="scan-error" class="scan-step scan-error" style="display:none">
               <div class="result-success-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>
@@ -590,6 +659,148 @@
               <button id="btn-retry-scan" class="btn-secondary btn-full">Reessayer</button>
               <button id="btn-close-error" class="btn-text btn-full">Fermer</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-time coaching banner — shown while the native scanner is
+           opening. Rotates 4 short French tips so the user feels guided
+           even though the ML Kit camera UI itself isn't ours to instrument. -->
+      <div id="scan-live-coach" class="scan-live-coach" style="display:none">
+        <span class="scan-live-coach-dot"></span>
+        <span class="scan-live-coach-text">Préparez votre document…</span>
+      </div>
+
+      <!-- Pre-scan tips overlay — shown every time the user taps a scan
+           CTA so the guidance stays present, not one-and-done. -->
+      <div id="scan-tips-modal" class="modal-overlay" style="display:none">
+        <div class="modal-container scan-tips-card">
+          <header class="scan-tips-header">
+            <div class="scan-tips-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </div>
+            <h3>Conseils pour un bon scan</h3>
+            <p>Pour une lecture OCR fiable, suivez ces 4 points.</p>
+          </header>
+          <ul class="scan-tips-list">
+            <li>
+              <span class="scan-tips-bullet">1</span>
+              <div>
+                <strong>Posez le document à plat</strong>
+                <span>Sur une surface contrastée (table sombre).</span>
+              </div>
+            </li>
+            <li>
+              <span class="scan-tips-bullet">2</span>
+              <div>
+                <strong>Cadrez avec une marge</strong>
+                <span>Laissez ~1 cm autour du document — ne coupez aucun coin.</span>
+              </div>
+            </li>
+            <li>
+              <span class="scan-tips-bullet">3</span>
+              <div>
+                <strong>Bonne lumière, sans reflet</strong>
+                <span>Évitez l'ombre de votre main et la lumière directe.</span>
+              </div>
+            </li>
+            <li>
+              <span class="scan-tips-bullet">4</span>
+              <div>
+                <strong>Tenez le téléphone stable</strong>
+                <span>Posez les coudes ou stabilisez sur un support.</span>
+              </div>
+            </li>
+          </ul>
+          <footer class="scan-tips-footer">
+            <button class="btn-secondary scan-tips-skip" type="button" id="scan-tips-cancel">Plus tard</button>
+            <button class="btn-primary scan-tips-go" type="button" id="scan-tips-continue">Scanner</button>
+          </footer>
+        </div>
+      </div>
+
+      <!-- Amount Mismatch Confirmation Modal (shown when OCR'd amount
+           differs from the transaction amount before commit) -->
+      <div id="tx-mismatch-modal" class="modal-overlay" style="display:none">
+        <div class="modal-container modal-card tx-mismatch-card">
+          <header class="tx-mismatch-header">
+            <div class="tx-mismatch-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="tx-mismatch-title">
+              <h3>Montants différents</h3>
+              <p>Le montant détecté ne correspond pas à la transaction.</p>
+            </div>
+          </header>
+          <div class="tx-mismatch-body">
+            <div id="tx-mismatch-meta" class="tx-mismatch-meta"></div>
+            <div class="tx-mismatch-amounts">
+              <div class="tx-mismatch-amount tx-mismatch-amount-doc">
+                <span class="tx-mismatch-amount-label">Document (OCR)</span>
+                <span class="tx-mismatch-amount-value" id="tx-mismatch-doc-amount">—</span>
+              </div>
+              <div class="tx-mismatch-arrow">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </div>
+              <div class="tx-mismatch-amount tx-mismatch-amount-tx">
+                <span class="tx-mismatch-amount-label">Transaction</span>
+                <span class="tx-mismatch-amount-value" id="tx-mismatch-tx-amount">—</span>
+              </div>
+            </div>
+            <div class="tx-mismatch-diff" id="tx-mismatch-diff"></div>
+          </div>
+          <footer class="tx-mismatch-footer">
+            <button class="btn-secondary tx-mismatch-cancel" type="button" id="tx-mismatch-cancel">Annuler</button>
+            <button class="btn-primary tx-mismatch-confirm" type="button" id="tx-mismatch-confirm">Rapprocher quand même</button>
+          </footer>
+        </div>
+      </div>
+
+      <!-- Justificatif Viewer Overlay (image + PDF) -->
+      <div id="justif-viewer" class="justif-viewer" style="display:none">
+        <header class="justif-viewer-header">
+          <button id="justif-viewer-close" class="justif-viewer-iconbtn" aria-label="Fermer">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <div class="justif-viewer-title" id="justif-viewer-title">Justificatif</div>
+          <div class="justif-viewer-actions">
+            <button id="justif-viewer-share" class="justif-viewer-iconbtn" aria-label="Partager">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
+            <button id="justif-viewer-open" class="justif-viewer-iconbtn" aria-label="Ouvrir">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+          </div>
+        </header>
+        <div id="justif-viewer-body" class="justif-viewer-body">
+          <div class="justif-viewer-loading">
+            <div class="justif-viewer-spinner"></div>
+            <p>Chargement du document...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaction Justificatifs Modal -->
+      <div id="tx-docs-modal" class="modal-overlay" style="display:none">
+        <div class="modal-container modal-fullscreen">
+          <header class="modal-header">
+            <button id="tx-docs-close" class="back-btn">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </button>
+            <h2>Justificatifs</h2>
+          </header>
+          <div class="modal-body">
+            <div id="tx-docs-summary" class="tx-docs-summary"></div>
+            <div id="tx-docs-wallet" class="tx-docs-wallet-wrap"></div>
+            <div id="tx-docs-matched" class="tx-docs-matched-wrap"></div>
+            <div class="tx-docs-section-title" id="tx-docs-count">Aucun justificatif</div>
+            <div id="tx-docs-list" class="tx-docs-list"></div>
+            <button id="tx-docs-add" class="tx-docs-add-btn">
+              <span class="tx-docs-add-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </span>
+              <span id="tx-docs-add-label">Ajouter un justificatif</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1422,6 +1633,20 @@
         </div>
       </div>
 
+      <!-- Supplier Invoice Detail -->
+      <div id="dir-tab-supplier-invoice-detail" class="tab-content sub-screen">
+        <header class="screen-header screen-header-plain">
+          <button class="back-btn" data-back="dir-tab-supplier-invoices">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1>Facture fournisseur</h1>
+          <div class="header-spacer"></div>
+        </header>
+        <div class="main-content">
+          <div id="supplier-invoice-detail-content" class="list-container"></div>
+        </div>
+      </div>
+
       <!-- Invoice Detail -->
       <div id="dir-tab-invoice-detail" class="tab-content sub-screen">
         <header class="screen-header">
@@ -1471,6 +1696,16 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/><path d="M6 16h2"/><path d="M12 16h6"/></svg>
           <span>Comptes</span>
         </button>
+        <!-- Centered primary CTA — full-bleed scan button. Tapping it
+             launches the doc scanner directly (with the pre-scan tips
+             overlay). The pill sits above the row so it's visually
+             dominant and impossible to miss. -->
+        <button id="btn-bottom-scan" class="nav-scan-cta" type="button" aria-label="Scanner un document">
+          <span class="nav-scan-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+          </span>
+          <span class="nav-scan-label">Scanner</span>
+        </button>
         <button class="nav-item" data-dir-tab="dir-tab-entrees">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14"/><path d="M5 9l7-7 7 7"/><path d="M3 20a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1"/></svg>
           <span>Entrees</span>
@@ -1478,10 +1713,6 @@
         <button class="nav-item" data-dir-tab="dir-tab-sorties">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14"/><path d="M19 9l-7 7-7-7"/><path d="M3 20a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1"/></svg>
           <span>Sorties</span>
-        </button>
-        <button class="nav-item" data-dir-tab="dir-tab-more">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-          <span>Plus</span>
         </button>
       </nav>
     </div>

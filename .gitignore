@@ -12,3 +12,10 @@ screen*.png
 android/app/google-services.json
 android/app/keystore/
 *.keystore
+# Build artefacts — locally produced APK / AAB / Play store bundles. We
+# rebuild from source, so there's no value in versioning these.
+release/
+*.apk
+*.aab
+google-play-release/
+oauth_screen.png

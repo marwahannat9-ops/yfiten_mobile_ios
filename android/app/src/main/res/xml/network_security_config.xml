@@ -1,5 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- Base config: trust system + user CAs for ALL domains. The user CA
+         clause is what saves us on devices with corporate VPNs / proxies
+         that install their own root cert; without it, every HTTPS call to
+         yfiten.com fails with a chain error.
+
+         cleartextTrafficPermitted is intentionally true: yfiten.com itself
+         is HTTPS-only, but legacy network paths (dev relays, on-device
+         testing on a private LAN) sometimes fall back to plain HTTP. We
+         don't want all APIs to silently die in those environments. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Production domain: keep HTTPS clean and explicit. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">yfiten.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Emulator host (localhost from device) — handy for debug builds. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">10.0.2.2</domain>
         <trust-anchors>
