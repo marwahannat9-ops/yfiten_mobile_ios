@@ -1,11 +1,25 @@
 node_modules/
 www/js/app.js
+# OpenCV.js (10 MB) is downloaded by hand into www/js/ when working on
+# the custom scanner. It's a third-party blob; we don't need it in the
+# repo. Re-fetch from https://docs.opencv.org/4.10.0/opencv.js if needed.
+www/js/opencv.js
 .DS_Store
 *.log
 android/app/build/
 android/.gradle/
 android/build/
-ios/
+# Track ios/ source (Xcode project, Podfile, AppDelegate, etc.) for Codemagic.
+# Build artefacts and generated files are excluded by ios/.gitignore.
+ios/App/build/
+ios/App/Pods/
+ios/App/output/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/App/capacitor-cordova-ios-plugins/
+ios/DerivedData/
+ios/**/xcuserdata/
 screen*.png
 .claude/
 .vscode/

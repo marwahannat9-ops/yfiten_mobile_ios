@@ -1,0 +1,88 @@
+workflows:
+  ios-unsigned:
+    name: iOS unsigned build
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 20.11.0
+      cocoapods: default
+      xcode: latest
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Build web bundle
+        script: npm run build
+      - name: Capacitor sync iOS
+        script: npx cap sync ios
+      - name: Pod install
+        working_directory: ios/App
+        script: pod install
+      - name: Build unsigned .app
+        working_directory: ios/App
+        script: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+    artifacts:
+      - ios/App/build/Build/Products/Release-iphoneos/*.app
+      - ios/App/build/Build/Products/Release-iphoneos/**/*.dSYM
+
+  ios-testflight:
+    name: iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      # Rename to match the App Store Connect integration you created in
+      # Codemagic Teams settings (Integrations -> Developer Portal).
+      app_store_connect: app_store_connect
+    environment:
+      node: 20.11.0
+      cocoapods: default
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.yfiten.phone
+      vars:
+        APP_STORE_APP_ID: "" # Numeric Apple ID of the app in App Store Connect (optional, used for direct submission)
+        BUNDLE_ID: com.yfiten.phone
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Build web bundle
+        script: npm run build
+      - name: Capacitor sync iOS
+        script: npx cap sync ios
+      - name: Pod install
+        working_directory: ios/App
+        script: pod install
+      - name: Set CFBundleVersion to build number
+        script: |
+          cd ios/App
+          agvtool new-version -all $(($BUILD_NUMBER + 1))
+      - name: Use App Store provisioning profile
+        script: xcode-project use-profiles
+      - name: Build signed IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Submit to TestFlight (no App Store review). Set submit_to_app_store: true
+        # only when you're ready for App Review.
+        submit_to_testflight: true
+        submit_to_app_store: false
