@@ -344,13 +344,20 @@
       <!-- ===== Dashboard ===== -->
       <div id="dir-tab-dashboard" class="tab-content active">
         <header class="mc-topbar">
-          <div class="mc-topbar-left">
-            <div class="mc-org-mark">Y</div>
-            <div>
+          <!-- Company switcher: the left side of the topbar IS the picker.
+               Tapping it opens a bottom sheet listing the user's organizations.
+               When the user is in a single-org account the chevron is hidden
+               (the sheet still works, but it just confirms the current org). -->
+          <button type="button" id="org-switcher-trigger" class="mc-topbar-left mc-org-switcher" aria-haspopup="dialog" aria-expanded="false">
+            <div class="mc-org-mark" id="org-mark">Y</div>
+            <div class="mc-org-meta">
               <p class="mc-greeting">Bonjour</p>
-              <h1 id="org-name" class="mc-org-name">Organisation</h1>
+              <span class="mc-org-name-row">
+                <h1 id="org-name" class="mc-org-name">Organisation</h1>
+                <svg id="org-switcher-chevron" class="mc-org-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="display:none"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
             </div>
-          </div>
+          </button>
           <div class="mc-topbar-actions">
             <button id="btn-notifications" class="mc-icon-btn" data-dir-tab="dir-tab-notifications" aria-label="Notifications">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -362,8 +369,25 @@
           </div>
         </header>
 
+        <!-- Hidden legacy <select> — kept ONLY because some logic still
+             reads from it. The real switcher is the bottom sheet below. -->
         <div id="org-selector" class="org-selector" style="display:none">
           <select id="org-select"></select>
+        </div>
+
+        <!-- Bottom-sheet company switcher. Filled at init time. -->
+        <div id="org-switcher-sheet" class="modal-overlay" style="display:none" role="dialog" aria-labelledby="org-switcher-title">
+          <div class="modal-container org-switcher-container">
+            <header class="modal-header">
+              <h2 id="org-switcher-title">Choisir une entreprise</h2>
+              <button type="button" id="org-switcher-close" class="back-btn" aria-label="Fermer">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </header>
+            <div class="modal-body">
+              <div id="org-switcher-list" class="org-switcher-list"></div>
+            </div>
+          </div>
         </div>
 
         <div class="main-content mc-main">
@@ -378,11 +402,12 @@
             </button>
           </section>
 
-          <!-- Period selector -->
-          <div class="mc-period">
-            <button class="mc-period-chip active">Ce mois</button>
-            <button class="mc-period-chip">7 jours</button>
-            <button class="mc-period-chip">Année</button>
+          <!-- Period selector — controls every KPI on this page (and on
+               Entrées / Sorties via the same loadDirDashboard call). -->
+          <div class="mc-period" id="mc-period-control">
+            <button type="button" class="mc-period-chip active" data-period="month">Ce mois</button>
+            <button type="button" class="mc-period-chip" data-period="week">7 jours</button>
+            <button type="button" class="mc-period-chip" data-period="year">Année</button>
           </div>
 
           <!-- Summary card -->
@@ -391,8 +416,8 @@
               <div class="mc-summary-left">
                 <span class="mc-dot mc-dot-green"></span>
                 <div>
-                  <div class="mc-summary-label">Recettes</div>
-                  <div class="mc-summary-sub">Encaissé ce mois</div>
+                  <div class="mc-summary-label">Revenus</div>
+                  <div class="mc-summary-sub" id="mc-revenue-period-sub">Encaissé ce mois</div>
                 </div>
               </div>
               <div class="mc-summary-amount mc-amount-pos" id="kpi-revenue">+0,00 MAD</div>
@@ -413,7 +438,7 @@
                 <span class="mc-dot mc-dot-dark"></span>
                 <div>
                   <div class="mc-summary-label mc-summary-strong">Solde net</div>
-                  <div class="mc-summary-sub">Recettes − Dépenses</div>
+                  <div class="mc-summary-sub">Revenus − Dépenses</div>
                 </div>
               </div>
               <div class="mc-summary-amount mc-amount-strong" id="mc-net">0,00 MAD</div>
@@ -466,10 +491,31 @@
       <div id="dir-tab-bank" class="tab-content">
         <header class="bank-header">
           <div class="bank-header-row">
-            <h1 class="bank-header-title">Comptes pro</h1>
+            <!-- Header is a page switcher: the small label is the
+                 section, the bold line is the active page. Tapping
+                 it opens the page-picker sheet — same pattern as the
+                 org switcher in the dashboard topbar. -->
+            <button type="button" id="bank-page-switcher" class="bank-page-switcher" aria-haspopup="dialog" aria-expanded="false">
+              <span class="bank-page-section">Comptes bancaires</span>
+              <span class="bank-page-current-row">
+                <span id="bank-page-current" class="bank-page-current">Transactions</span>
+                <svg class="bank-page-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <button type="button" id="btn-bank-page-menu" class="bank-page-menu-btn" aria-label="Changer de page">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+              </svg>
+            </button>
           </div>
-          <!-- Hero balance card (white) — keeps Import/Refresh hidden in
-               favor of a calmer, single-focus header. -->
+          <!-- Hero balance card (white). The amount now reflects the
+               "solde final" from the most recent bank statement per
+               account (falling back to the account's stored balance
+               when no statement exists), mirroring the webapp's
+               compte-pro/bank-accounts logic. -->
           <div id="bank-balance-card" class="bank-balance-card">
             <div class="bank-balance-label">Solde total</div>
             <div class="bank-balance-amount" id="bank-balance-amount">— MAD</div>
@@ -490,10 +536,61 @@
         <input type="file" id="statement-file-input" accept="application/pdf" multiple style="display:none" />
 
         <div class="main-content bank-main">
-          <!-- Segment: Transactions / Relevés -->
-          <div class="segment-control bank-segment-pill" id="bank-segment-control">
-            <button class="segment-btn active" data-bank-seg="transactions">Transactions</button>
-            <button class="segment-btn" data-bank-seg="statements">Relevés</button>
+          <!-- Hidden segment-control kept ONLY because some legacy code
+               (segment-btn click delegation, etc.) might still query it.
+               Real switching is done via the bottom-sheet picker below. -->
+          <div class="bank-segment-tabs" id="bank-segment-control" style="display:none">
+            <button class="segment-btn active" data-bank-seg="transactions"></button>
+            <button class="segment-btn" data-bank-seg="accounts"></button>
+            <button class="segment-btn" data-bank-seg="statements"></button>
+          </div>
+
+          <!-- Bottom-sheet page picker, opened from the header switcher
+               or the grid-icon button. Three rows: each one swaps the
+               visible bank-segment and highlights itself. -->
+          <div id="bank-page-sheet" class="modal-overlay" style="display:none" role="dialog" aria-labelledby="bank-page-sheet-title">
+            <div class="modal-container bank-page-sheet-container">
+              <header class="modal-header">
+                <h2 id="bank-page-sheet-title">Choisir une page</h2>
+                <button type="button" id="bank-page-sheet-close" class="back-btn" aria-label="Fermer">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </header>
+              <div class="modal-body">
+                <div class="bank-page-list">
+                  <button type="button" class="bank-page-item" data-bank-seg="transactions">
+                    <span class="bank-page-icon" data-color="indigo">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                    </span>
+                    <span class="bank-page-meta">
+                      <span class="bank-page-name">Transactions</span>
+                      <span class="bank-page-desc">Toutes les opérations bancaires</span>
+                    </span>
+                    <svg class="bank-page-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="bank-page-item" data-bank-seg="accounts">
+                    <span class="bank-page-icon" data-color="emerald">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-7h6v7"/></svg>
+                    </span>
+                    <span class="bank-page-meta">
+                      <span class="bank-page-name">Comptes</span>
+                      <span class="bank-page-desc">Vos comptes bancaires</span>
+                    </span>
+                    <svg class="bank-page-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button type="button" class="bank-page-item" data-bank-seg="statements">
+                    <span class="bank-page-icon" data-color="amber">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                    </span>
+                    <span class="bank-page-meta">
+                      <span class="bank-page-name">Relevés</span>
+                      <span class="bank-page-desc">Importer et consulter les relevés PDF</span>
+                    </span>
+                    <svg class="bank-page-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- === Transactions panel === -->
@@ -538,6 +635,14 @@
               </div>
             </div>
             <div id="transactions-list" class="list-container"></div>
+          </div>
+
+          <!-- === Comptes panel === — list of bank accounts, mirroring the
+               webapp's compte-pro/bank-accounts page (cards with bank
+               logo, account name, primary badge, IBAN/RIB/BIC, and
+               last known balance from the most recent statement). -->
+          <div id="bank-seg-accounts" class="bank-segment" style="display:none">
+            <div id="bank-accounts-list" class="bank-accounts-list"></div>
           </div>
 
           <!-- === Releves panel === -->
@@ -600,26 +705,93 @@
            surface. Removed the standalone tips card (guidance is delivered
            in-flow by the pre-scan tips overlay + live coach banner). -->
       <div id="dir-tab-tickets" class="tab-content sub-screen">
-        <header class="screen-header">
-          <button class="back-btn" data-back="dir-tab-sorties">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-          </button>
-          <h1>Reçus</h1>
-          <span class="header-spacer" aria-hidden="true"></span>
-        </header>
-        <div class="main-content">
-          <div class="ticket-actions-bar">
-            <button id="btn-take-photo" class="ticket-action-pill ticket-action-primary">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span>Scanner</span>
+        <header class="screen-header tickets-header">
+          <!-- Default header (not in select) — clean: just back + title -->
+          <div class="tickets-header-default">
+            <button class="back-btn" data-back="dir-tab-sorties">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
             </button>
-            <button id="btn-pick-gallery" class="ticket-action-pill">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-              <span>Importer</span>
-            </button>
+            <h1 id="tickets-page-title">Reçus</h1>
+            <span class="header-spacer" aria-hidden="true"></span>
           </div>
-
+          <!-- Select-mode header -->
+          <div class="tickets-header-select" style="display:none">
+            <button type="button" id="btn-tickets-cancel" class="tickets-text-link">Annuler</button>
+            <h2 class="tickets-select-title"><span id="tickets-select-count-num">0</span> sélectionné<span id="tickets-select-count-suffix"></span></h2>
+            <button type="button" id="btn-tickets-select-all" class="tickets-text-link">Tout</button>
+          </div>
+        </header>
+        <div class="main-content tickets-main">
           <div id="tickets-list" class="list-container tickets-list"></div>
+        </div>
+
+        <!-- Speed-dial FAB (bottom-right). The main + button has an
+             indigo→violet gradient and a strong shadow. Tapping it
+             reveals two satellite circles fanning UP — Importer first
+             (closer), then Scanner (farther) — each with a floating
+             label. Tap the main button again (or the backdrop) to
+             collapse. Long-press a row to enter select mode. -->
+        <div id="tickets-fab-root" class="tickets-fab-root">
+          <button type="button" id="btn-take-photo" class="tickets-fab-sub tickets-fab-scan" aria-label="Scanner">
+            <span class="tickets-fab-tag">Scanner</span>
+            <span class="tickets-fab-bubble">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </span>
+          </button>
+          <button type="button" id="btn-pick-gallery" class="tickets-fab-sub tickets-fab-import" aria-label="Importer">
+            <span class="tickets-fab-tag">Importer</span>
+            <span class="tickets-fab-bubble">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            </span>
+          </button>
+          <button type="button" id="btn-tickets-fab" class="tickets-fab-main" aria-label="Ajouter un reçu" aria-expanded="false">
+            <svg class="tickets-fab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Floating action pill — appears in select mode -->
+        <div id="tickets-multi-action-bar" class="tickets-multi-action-bar" style="display:none">
+          <button type="button" id="btn-tickets-multi-share" class="tickets-multi-btn tickets-multi-share">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            <span>Partager</span>
+          </button>
+          <span class="tickets-multi-divider"></span>
+          <button type="button" id="btn-tickets-multi-delete" class="tickets-multi-btn tickets-multi-delete">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            <span>Supprimer</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom OpenCV-powered document scanner.
+           Full-screen camera preview with a real-time edge-detection
+           overlay and a coach banner that swaps message + colour as the
+           framing improves. Auto-captures when the document is stable
+           and well-framed; user can also tap the capture button.
+           Implemented entirely in the WebView (getUserMedia + OpenCV.js)
+           so we get full UX control — unlike ML Kit's closed activity. -->
+      <div id="cv-scanner" class="cv-scanner-overlay" style="display:none" aria-hidden="true">
+        <video class="cv-scanner-video" autoplay playsinline muted></video>
+        <canvas class="cv-scanner-canvas"></canvas>
+        <div class="cv-scanner-coach" data-state="searching">
+          <span class="cv-coach-text">Recherche d'un document…</span>
+        </div>
+        <div class="cv-scanner-actions">
+          <button class="cv-scanner-btn cv-scanner-cancel" type="button" aria-label="Annuler">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <button class="cv-scanner-btn cv-scanner-capture" type="button" aria-label="Capturer">
+            <span class="cv-capture-ring"></span>
+          </button>
+          <button class="cv-scanner-btn cv-scanner-fallback" type="button" aria-label="Scanner classique" title="Mode classique">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          </button>
+        </div>
+        <div class="cv-scanner-loading" style="display:flex">
+          <div class="auth-loading-spinner"></div>
+          <div class="cv-scanner-loading-text">Chargement du scanner…</div>
         </div>
       </div>
 
@@ -837,160 +1009,156 @@
 
       <!-- ===== Entrees (Income) ===== -->
       <div id="dir-tab-entrees" class="tab-content">
-        <header class="screen-header">
+        <header class="screen-header sec-header">
           <div class="header-titles">
             <h1>Entrées</h1>
             <p class="header-subtitle">Revenus et facturation</p>
           </div>
-          <button class="icon-btn" data-dir-tab="dir-tab-invoice-new">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
+          <span class="header-spacer" aria-hidden="true"></span>
         </header>
-        <div class="main-content">
-          <!-- Summary strip -->
-          <div class="cat-summary">
-            <div class="cat-summary-item">
-              <span class="cat-summary-label">Encaissé ce mois</span>
-              <span class="cat-summary-value" id="cat-entrees-revenue">0 MAD</span>
+        <div class="main-content sec-main">
+          <!-- Hero stats card — gradient indigo card with the month
+               revenue, secondary à-encaisser stat, and a status chip.
+               Replaces the small grey strip from before. -->
+          <section class="sec-hero sec-hero-entrees">
+            <div class="sec-hero-eyebrow" id="entrees-period-eyebrow">Encaissé ce mois</div>
+            <div class="sec-hero-amount-row">
+              <span class="sec-hero-amount" id="cat-entrees-revenue">0 MAD</span>
             </div>
-            <div class="cat-summary-divider"></div>
-            <div class="cat-summary-item">
-              <span class="cat-summary-label">À encaisser</span>
-              <span class="cat-summary-value" id="cat-entrees-pending">0</span>
+            <div class="sec-hero-meta">
+              <span class="sec-hero-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span><span id="cat-entrees-pending">0</span> à encaisser</span>
+              </span>
             </div>
+          </section>
+
+          <!-- Vertical stack of rich section rows -->
+          <div class="sec-list">
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-invoices">
+              <span class="sec-row-icon" data-color="indigo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Factures</span>
+                <span class="sec-row-sub" id="cat-entrees-invoices-sub">Gérer les factures clients</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-quotes">
+              <span class="sec-row-icon" data-color="violet">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Devis</span>
+                <span class="sec-row-sub" id="cat-entrees-quotes-sub">Propositions commerciales</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-clients">
+              <span class="sec-row-icon" data-color="emerald">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Clients</span>
+                <span class="sec-row-sub" id="cat-entrees-clients-sub">Annuaire et coordonnées</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-products">
+              <span class="sec-row-icon" data-color="amber">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Produits & services</span>
+                <span class="sec-row-sub" id="cat-entrees-products-sub">Catalogue facturable</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
           </div>
 
-          <!-- Tile grid -->
-          <div class="cat-grid">
-            <button class="cat-tile" data-dir-tab="dir-tab-invoices">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-blue">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Factures</div>
-              <div class="cat-tile-sub" id="cat-entrees-invoices-sub">Gérer les factures clients</div>
-            </button>
-            <button class="cat-tile" data-dir-tab="dir-tab-quotes">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-indigo">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Devis</div>
-              <div class="cat-tile-sub" id="cat-entrees-quotes-sub">Propositions commerciales</div>
-            </button>
-            <button class="cat-tile" data-dir-tab="dir-tab-clients">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-emerald">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Clients</div>
-              <div class="cat-tile-sub" id="cat-entrees-clients-sub">Annuaire et coordonnées</div>
-            </button>
-            <button class="cat-tile" data-dir-tab="dir-tab-products">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-violet">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Produits & services</div>
-              <div class="cat-tile-sub" id="cat-entrees-products-sub">Catalogue facturable</div>
-            </button>
-          </div>
-
-          <!-- Quick CTA -->
-          <button class="cat-cta" data-dir-tab="dir-tab-invoice-new">
-            <span class="cat-cta-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <button type="button" class="sec-cta sec-cta-entrees" data-dir-tab="dir-tab-invoice-new">
+            <span class="sec-cta-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </span>
             <span>Créer une facture</span>
-            <svg class="cat-cta-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            <svg class="sec-cta-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
           </button>
         </div>
       </div>
 
       <!-- ===== Sorties (Expenses) ===== -->
       <div id="dir-tab-sorties" class="tab-content">
-        <header class="screen-header">
+        <header class="screen-header sec-header">
           <div class="header-titles">
             <h1>Sorties</h1>
             <p class="header-subtitle">Dépenses et fournisseurs</p>
           </div>
-          <button class="icon-btn" data-action="scan-ticket">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
+          <span class="header-spacer" aria-hidden="true"></span>
         </header>
-        <div class="main-content">
-          <!-- Summary strip -->
-          <div class="cat-summary">
-            <div class="cat-summary-item">
-              <span class="cat-summary-label">Dépenses ce mois</span>
-              <span class="cat-summary-value" id="cat-sorties-expenses">0 MAD</span>
+        <div class="main-content sec-main">
+          <section class="sec-hero sec-hero-sorties">
+            <div class="sec-hero-eyebrow" id="sorties-period-eyebrow">Dépensé ce mois</div>
+            <div class="sec-hero-amount-row">
+              <span class="sec-hero-amount" id="cat-sorties-expenses">0 MAD</span>
             </div>
-            <div class="cat-summary-divider"></div>
-            <div class="cat-summary-item">
-              <span class="cat-summary-label">Reçus scannés</span>
-              <span class="cat-summary-value" id="cat-sorties-tickets">0</span>
+            <div class="sec-hero-meta">
+              <span class="sec-hero-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3"/></svg>
+                <span><span id="cat-sorties-tickets">0</span> reçus scannés</span>
+              </span>
             </div>
+          </section>
+
+          <div class="sec-list">
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-tickets">
+              <span class="sec-row-icon" data-color="orange">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4"/><path d="M2 15v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Reçus & tickets</span>
+                <span class="sec-row-sub">Notes scannées par OCR</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-supplier-invoices">
+              <span class="sec-row-icon" data-color="rose">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Factures fournisseurs</span>
+                <span class="sec-row-sub">Factures à régler</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-expense-notes">
+              <span class="sec-row-icon" data-color="pink">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h10l6 6v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><line x1="12" y1="18" x2="12" y2="12"/><path d="M9 15l3-3 3 3"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Notes de frais</span>
+                <span class="sec-row-sub">Remboursements</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button type="button" class="sec-row" data-dir-tab="dir-tab-suppliers">
+              <span class="sec-row-icon" data-color="teal">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 12h20"/></svg>
+              </span>
+              <span class="sec-row-meta">
+                <span class="sec-row-name">Fournisseurs</span>
+                <span class="sec-row-sub">Carnet d'adresses</span>
+              </span>
+              <svg class="sec-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
           </div>
 
-          <!-- Tile grid -->
-          <div class="cat-grid">
-            <button class="cat-tile" data-dir-tab="dir-tab-tickets">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-orange">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4"/><path d="M2 15v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Reçus & tickets</div>
-              <div class="cat-tile-sub">Notes scannées par OCR</div>
-            </button>
-            <button class="cat-tile" data-dir-tab="dir-tab-supplier-invoices">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-red">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Fact. fournisseurs</div>
-              <div class="cat-tile-sub">Factures à régler</div>
-            </button>
-            <button class="cat-tile" data-dir-tab="dir-tab-expense-notes">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-pink">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h10l6 6v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><line x1="12" y1="18" x2="12" y2="12"/><path d="M9 15l3-3 3 3"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Notes de frais</div>
-              <div class="cat-tile-sub">Remboursements</div>
-            </button>
-            <button class="cat-tile" data-dir-tab="dir-tab-suppliers">
-              <div class="cat-tile-top">
-                <div class="cat-tile-icon bg-amber">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 12h20"/></svg>
-                </div>
-                <svg class="cat-tile-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              </div>
-              <div class="cat-tile-title">Fournisseurs</div>
-              <div class="cat-tile-sub">Carnet d'adresses</div>
-            </button>
-          </div>
-
-          <!-- Quick CTA -->
-          <button class="cat-cta" data-action="scan-ticket">
-            <span class="cat-cta-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+          <button type="button" class="sec-cta sec-cta-sorties" data-action="scan-ticket">
+            <span class="sec-cta-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </span>
             <span>Scanner un reçu</span>
-            <svg class="cat-cta-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            <svg class="sec-cta-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
           </button>
         </div>
       </div>

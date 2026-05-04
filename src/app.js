@@ -604,21 +604,186 @@ async function doLogout() {
    DIRIGEANT MODE
    ==================================================================== */
 
+function _getOrgName(o) {
+  if (!o) return "Organisation";
+  return String(o.name || o.companyName || "Organisation");
+}
+function _getOrgId(o) { return String(o?._id || o?.id || ""); }
+
+// Initials for the avatar mark. "Pigma" → "P", "Pigma System" → "PS",
+// "Acme Co. SARL" → "AC". Skips short noise tokens (SARL, SA, …) so
+// "Pigma SARL" doesn't render "PS" — it stays "P".
+const _ORG_INITIALS_NOISE = new Set(["sa", "sarl", "sas", "sasu", "snc", "eurl", "spa", "scs", "co"]);
+function _getOrgInitial(o) {
+  const n = _getOrgName(o).trim();
+  if (!n) return "?";
+  // Strip diacritics so "Élise" → "Elise" and we get "E", not a combining mark.
+  const norm = n.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const tokens = norm.split(/[\s\-_'.]+/).filter(Boolean);
+  const meaningful = tokens.filter((t) => !_ORG_INITIALS_NOISE.has(t.toLowerCase()));
+  const pick = meaningful.length ? meaningful : tokens;
+  if (pick.length >= 2) return (pick[0][0] + pick[1][0]).toUpperCase();
+  return pick[0][0].toUpperCase();
+}
+
+// Deterministic gradient per org. The avatar is a circle with a smooth
+// top-left → bottom-right gradient — gives the badge real depth without
+// needing imagery. The two stops are picked from the same hue family so
+// it reads as a single colour, just lit. White text reads on every one.
+const _ORG_AVATAR_PALETTE = [
+  ["#6366f1", "#4338ca"], // indigo
+  ["#8b5cf6", "#6d28d9"], // violet
+  ["#3b82f6", "#1d4ed8"], // blue
+  ["#06b6d4", "#0e7490"], // cyan
+  ["#10b981", "#047857"], // emerald
+  ["#14b8a6", "#0f766e"], // teal
+  ["#f59e0b", "#b45309"], // amber
+  ["#f97316", "#c2410c"], // orange
+  ["#ef4444", "#b91c1c"], // red
+  ["#ec4899", "#be185d"], // pink
+  ["#a855f7", "#7e22ce"], // purple
+  ["#0ea5e9", "#0369a1"], // sky
+];
+function _hashString(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return h;
+}
+function _getOrgAvatarGradient(o) {
+  const key = String(_getOrgId(o) || _getOrgName(o));
+  const idx = Math.abs(_hashString(key)) % _ORG_AVATAR_PALETTE.length;
+  const [a, b] = _ORG_AVATAR_PALETTE[idx];
+  return `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
+}
+// Kept for any caller that asked for the flat colour previously — returns
+// the darker (bottom) stop so old call sites still get a sensible colour.
+function _getOrgAvatarColor(o) {
+  const key = String(_getOrgId(o) || _getOrgName(o));
+  const idx = Math.abs(_hashString(key)) % _ORG_AVATAR_PALETTE.length;
+  return _ORG_AVATAR_PALETTE[idx][1];
+}
+
+// Render the topbar: company name + initials avatar (background colour
+// derived from the org id/name so each company has a stable, distinct
+// look). Chevron only when there's more than one org. Called on init,
+// on org switch, and any time state.orgId changes.
+function renderTopbarOrg() {
+  const orgs = state.organizations || [];
+  const current = orgs.find((o) => _getOrgId(o) === String(state.orgId)) || orgs[0] || null;
+  const nameEl = document.getElementById("org-name");
+  const markEl = document.getElementById("org-mark");
+  const chevronEl = document.getElementById("org-switcher-chevron");
+  if (nameEl) nameEl.textContent = _getOrgName(current);
+  if (markEl) {
+    markEl.textContent = _getOrgInitial(current);
+    // Background gradient + a tiny solid fallback in case the gradient
+    // is overridden by some legacy CSS rule.
+    markEl.style.backgroundImage = _getOrgAvatarGradient(current);
+    markEl.style.backgroundColor = _getOrgAvatarColor(current);
+  }
+  if (chevronEl) chevronEl.style.display = orgs.length > 1 ? "inline-block" : "none";
+}
+
+function _renderOrgSwitcherList() {
+  const list = document.getElementById("org-switcher-list");
+  if (!list) return;
+  const orgs = state.organizations || [];
+  if (orgs.length === 0) {
+    list.innerHTML = `<p style="text-align:center;color:#64748b;font-size:13px;padding:12px">Aucune entreprise</p>`;
+    return;
+  }
+  list.innerHTML = orgs.map((o) => {
+    const id = _getOrgId(o);
+    const isCurrent = id === String(state.orgId);
+    const label = escapeHtml(_getOrgName(o));
+    const sub = o.role || o.legal?.ma?.iceNumber || "";
+    const gradient = _getOrgAvatarGradient(o);
+    const fallback = _getOrgAvatarColor(o);
+    const initials = escapeHtml(_getOrgInitial(o));
+    return `<button type="button" class="org-switcher-item ${isCurrent ? "is-current" : ""}" data-org-id="${escapeHtml(id)}">
+      <span class="org-switcher-mark" style="background-image:${gradient};background-color:${fallback}">${initials}</span>
+      <div class="org-switcher-info">
+        <div class="org-switcher-name">${label}</div>
+        ${sub ? `<div class="org-switcher-sub">${escapeHtml(sub)}</div>` : ""}
+      </div>
+      <svg class="org-switcher-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    </button>`;
+  }).join("");
+}
+
+function openOrgSwitcher() {
+  const sheet = document.getElementById("org-switcher-sheet");
+  const trigger = document.getElementById("org-switcher-trigger");
+  if (!sheet) return;
+  _renderOrgSwitcherList();
+  sheet.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  if (trigger) trigger.setAttribute("aria-expanded", "true");
+}
+function closeOrgSwitcher() {
+  const sheet = document.getElementById("org-switcher-sheet");
+  const trigger = document.getElementById("org-switcher-trigger");
+  if (!sheet) return;
+  sheet.style.display = "none";
+  document.body.style.overflow = "";
+  if (trigger) trigger.setAttribute("aria-expanded", "false");
+}
+
+async function selectOrgAndSwitch(orgId) {
+  if (!orgId || String(orgId) === String(state.orgId)) {
+    closeOrgSwitcher();
+    return;
+  }
+  await saveOrgId(orgId);
+  // Drop any cached dashboard data — it was for the previous org.
+  if (typeof invalidateDirDataCache === "function") invalidateDirDataCache();
+  renderTopbarOrg();
+  closeOrgSwitcher();
+  // Hard refresh of the visible tab so KPIs / lists reflect the new org.
+  switchDirTab(currentDirTab || "dashboard");
+}
+
 function initDirigeantScreen() {
   const orgs = state.organizations;
   const selectorEl = document.getElementById("org-selector");
   const selectEl = document.getElementById("org-select");
 
-  if (orgs.length > 1) {
-    selectorEl.style.display = "block";
+  // Legacy hidden <select> kept in sync — some code still reads from it.
+  // The user-facing switcher is the bottom sheet bound below.
+  selectorEl.style.display = "none";
+  if (selectEl) {
     selectEl.innerHTML = orgs
       .map((o) => {
-        const id = o._id || o.id;
-        return `<option value="${id}" ${id === state.orgId ? "selected" : ""}>${escapeHtml(o.name || o.companyName || "Organisation")}</option>`;
+        const id = _getOrgId(o);
+        return `<option value="${escapeHtml(id)}" ${id === String(state.orgId) ? "selected" : ""}>${escapeHtml(_getOrgName(o))}</option>`;
       })
       .join("");
-  } else {
-    selectorEl.style.display = "none";
+  }
+
+  renderTopbarOrg();
+
+  // Bind switcher trigger + sheet — idempotent, the buttons live in the
+  // dashboard tab so they're present once #screen-dirigeant mounts.
+  const trigger = document.getElementById("org-switcher-trigger");
+  if (trigger && !trigger.dataset.bound) {
+    trigger.dataset.bound = "1";
+    trigger.addEventListener("click", () => {
+      // Single-org accounts: don't even open the sheet, nothing to switch.
+      if ((state.organizations || []).length <= 1) return;
+      openOrgSwitcher();
+    });
+  }
+  const sheet = document.getElementById("org-switcher-sheet");
+  if (sheet && !sheet.dataset.bound) {
+    sheet.dataset.bound = "1";
+    sheet.addEventListener("click", (e) => {
+      if (e.target === sheet) { closeOrgSwitcher(); return; }
+      const item = e.target.closest(".org-switcher-item");
+      if (item && item.dataset.orgId) selectOrgAndSwitch(item.dataset.orgId);
+    });
+    document.getElementById("org-switcher-close")?.addEventListener("click", closeOrgSwitcher);
   }
 
   // Set profile info in More tab
@@ -634,6 +799,109 @@ function initDirigeantScreen() {
 }
 
 /* ----- DIRIGEANT DASHBOARD ----- */
+
+// Active period for the dashboard KPIs (Ce mois / 7 jours / Année).
+// Same value drives the Entrées and Sorties hero amounts.
+let _currentDirPeriod = "month";
+
+// Period helpers — each returns a Date for the start of the window.
+// The end of the window is always "now" (live data, no future dates).
+function _periodStart(period, now = new Date()) {
+  const d = new Date(now);
+  if (period === "week") {
+    d.setDate(d.getDate() - 7);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  if (period === "year") {
+    d.setMonth(0, 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  // "month" (default)
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function _periodLabel(period) {
+  if (period === "week") return "7 derniers jours";
+  if (period === "year") return "Cette année";
+  return "Ce mois";
+}
+// Eyebrow text for the section heroes — slightly different phrasing.
+function _periodSubText(period, kind) {
+  if (period === "week") return kind === "in" ? "Encaissé · 7 jours" : "Dépensé · 7 jours";
+  if (period === "year") return kind === "in" ? "Encaissé cette année" : "Dépensé cette année";
+  return kind === "in" ? "Encaissé ce mois" : "Dépensé ce mois";
+}
+// Coerce any of the various date fields the API returns into a usable
+// Date or null. Forgiving — if all are missing we fall through to "no
+// date" which simply excludes the row from period filters.
+function _txDate(obj, fields = ["paymentDate", "date", "valueDate", "createdAt", "issueDate"]) {
+  for (const f of fields) {
+    const v = obj?.[f];
+    if (!v) continue;
+    const d = new Date(v);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+// Returns the items whose primary date falls within [start, +∞).
+function _filterByPeriod(items, period, fields) {
+  const start = _periodStart(period);
+  return items.filter((it) => {
+    const d = _txDate(it, fields);
+    return d && d >= start;
+  });
+}
+
+// Compute the "solde final" total for an org — same rule as the webapp's
+// compte-pro/bank-accounts page: for each account, prefer the closing
+// balance from its most recent statement (`/api/pro-accounts/last-balances`),
+// fall back to the account's stored `balanceCents`. Returns the SUM in
+// cents across every account, with the count alongside.
+function computeTotalBalance(accounts, lastBalances) {
+  const arr = Array.isArray(accounts) ? accounts : [];
+  let total = 0;
+  for (const a of arr) {
+    const id = String(a?.id || a?._id || "");
+    const fromStatement = id && lastBalances && lastBalances[id] != null
+      ? Number(lastBalances[id])
+      : null;
+    const fallback = Number(a?.balanceCents ?? a?.balance ?? 0);
+    total += fromStatement != null ? fromStatement : fallback;
+  }
+  return { totalCents: total, count: arr.length };
+}
+
+// Per-endpoint cache so navigating between dashboard / entrees / sorties /
+// recent-activity doesn't re-fetch the same URL several times in a row.
+// We treat the cache as fresh for 30 s — long enough to make rapid tab
+// switches feel instant, short enough that hand-edited records show up
+// quickly. Each entry stores the in-flight Promise so concurrent calls
+// share one network round trip.
+const _dirDataCache = new Map(); // url → { ts, promise }
+const _DIR_CACHE_TTL = 30000;
+
+function _cachedFetch(url) {
+  const now = Date.now();
+  const hit = _dirDataCache.get(url);
+  if (hit && now - hit.ts < _DIR_CACHE_TTL) return hit.promise;
+  const promise = apiFetch(url).catch((e) => {
+    // Don't poison the cache on failure — drop the entry so the next
+    // tab switch retries.
+    _dirDataCache.delete(url);
+    throw e;
+  });
+  _dirDataCache.set(url, { ts: now, promise });
+  return promise;
+}
+
+// Manually invalidate the cache after writes (new invoice, attached
+// receipt, etc.) so the next dashboard refresh shows the latest state.
+function invalidateDirDataCache() {
+  _dirDataCache.clear();
+}
 
 async function loadDirDashboard() {
   if (!state.orgId) return;
@@ -664,106 +932,108 @@ async function loadDirDashboard() {
     setKpi("mc-pending-sub", todo === 0 ? "Aucune facture en attente" : (todo === 1 ? "1 facture en attente" : `${todo} factures en attente`));
   };
 
-  // Load KPIs in parallel
+  // One fetch per endpoint — this used to fire 5 API calls (with two
+  // duplicate /api/client-invoices) and another 2 in loadRecentActivity.
+  // Now each URL is hit once, cached, and shared by every consumer.
+  const orgQ = `?organizationId=${state.orgId}`;
+  const invoicesP = _cachedFetch(`/api/client-invoices${orgQ}`);
+  const ticketsP = _cachedFetch(`/api/tickets${orgQ}`);
+  const supplierP = _cachedFetch(`/api/supplier-invoices${orgQ}`);
+  const accountsP = _cachedFetch(`/api/pro-accounts${orgQ}`);
+  // Last known closing balance per account, from the most recent imported
+  // bank statement. Mirrors the webapp's compte-pro/bank-accounts page —
+  // if the user has imported relevés, this is the authoritative balance
+  // ("solde final") rather than the stale stored balance.
+  const lastBalancesP = _cachedFetch(`/api/pro-accounts/last-balances${orgQ}`);
+
   const promises = [];
 
-  // Revenue — only count invoices that are actually paid. Brouillon (draft) and
-  // À encaisser (to be collected) are NOT realized money yet, so excluding them
-  // keeps the accounting safe (you don't book revenue you haven't received).
-  promises.push(
-    apiFetch(`/api/client-invoices?organizationId=${state.orgId}`).then(res => {
-      if (res.ok) {
-        const invoices = res.data?.invoices || [];
-        const paidTotal = invoices
-          .filter(inv => inv.status === "Payée" || inv.status === "Payee")
-          .reduce((sum, inv) => sum + (inv.amountCents || 0), 0);
-        revenueCents = paidTotal;
-        setKpi("kpi-revenue", `+${formatAmount(paidTotal)}`);
-        setKpi("cat-entrees-revenue", formatAmount(paidTotal));
-        setKpi("cat-entrees-invoices-sub", invoices.length === 1 ? "1 facture" : `${invoices.length} factures`);
-        refreshNet();
-      }
-    }).catch(() => {})
-  );
+  const period = _currentDirPeriod;
+  // Update the page eyebrow / sub texts so the labels match the active
+  // period instead of always saying "ce mois".
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  setText("entrees-period-eyebrow", _periodSubText(period, "in"));
+  setText("sorties-period-eyebrow", _periodSubText(period, "out"));
+  setText("mc-revenue-period-sub", _periodSubText(period, "in"));
 
-  // Tickets contribute to expenses + drive the documents count
-  promises.push(
-    apiFetch(`/api/tickets?organizationId=${state.orgId}`).then(res => {
-      if (res.ok) {
-        const tickets = res.data?.tickets || (Array.isArray(res.data) ? res.data : []);
-        ticketsExpensesCents = tickets.reduce((sum, t) => sum + (t.amountCents || 0), 0);
-        setKpi("kpi-documents", String(tickets.length));
-        setKpi("cat-sorties-tickets", String(tickets.length));
-        refreshExpensesUI();
-        refreshNet();
-      }
-    }).catch(() => {})
-  );
+  // Revenue + pending — period-filtered for the displayed amount, but
+  // pending count stays "all-time outstanding" since unpaid invoices
+  // shouldn't drop off just because they're old.
+  promises.push(invoicesP.then(res => {
+    if (!res?.ok) return;
+    const invoices = res.data?.invoices || [];
+    const paidInvoices = invoices.filter(inv => inv.status === "Payée" || inv.status === "Payee");
+    // Period filter on the actual payment date for booked revenue.
+    const paidInPeriod = _filterByPeriod(paidInvoices, period, ["paymentDate", "issueDate", "createdAt"]);
+    const paidTotal = paidInPeriod.reduce((sum, inv) => sum + (inv.amountCents || 0), 0);
+    revenueCents = paidTotal;
+    setKpi("kpi-revenue", `+${formatAmount(paidTotal)}`);
+    setKpi("cat-entrees-revenue", formatAmount(paidTotal));
+    // Sub-stat shows TOTAL invoice count (cumulative) so the sub-pages
+    // header matches what the user sees inside Factures.
+    setKpi("cat-entrees-invoices-sub", invoices.length === 1 ? "1 facture" : `${invoices.length} factures`);
+    pendingCount = invoices.filter(i => i.status === "Brouillon" || i.status === "À encaisser").length;
+    setKpi("kpi-pending", String(pendingCount));
+    setKpi("cat-entrees-pending", String(pendingCount));
+    refreshNet();
+  }).catch(() => {}));
 
-  // Supplier invoices ARE expenses — count every one of them, regardless of
-  // payment status. An unpaid supplier bill is still a committed expense; the
-  // safe-accounting filter only applies to revenue (don't count unrealized
-  // client invoices), not to expenses.
-  promises.push(
-    apiFetch(`/api/supplier-invoices?organizationId=${state.orgId}`).then(res => {
-      if (res.ok) {
-        const invoices = res.data?.invoices || res.data?.supplierInvoices || [];
-        supplierExpensesCents = invoices.reduce((sum, i) => sum + (i.amountCents || 0), 0);
-        refreshExpensesUI();
-        refreshNet();
-      }
-    }).catch(() => {})
-  );
+  promises.push(ticketsP.then(res => {
+    if (!res?.ok) return;
+    const allTickets = res.data?.tickets || (Array.isArray(res.data) ? res.data : []);
+    const ticketsInPeriod = _filterByPeriod(allTickets, period, ["paymentDate", "createdAt"]);
+    ticketsExpensesCents = ticketsInPeriod.reduce((sum, t) => sum + (t.amountCents || 0), 0);
+    // Documents count: total (lifetime), so it matches what the Reçus
+    // list shows internally.
+    setKpi("kpi-documents", String(allTickets.length));
+    setKpi("cat-sorties-tickets", String(allTickets.length));
+    refreshExpensesUI();
+    refreshNet();
+  }).catch(() => {}));
 
-  // Bank balance
-  promises.push(
-    apiFetch(`/api/pro-accounts?organizationId=${state.orgId}`).then(res => {
-      if (res.ok) {
-        const totalBalanceCents = res.data?.totalBalanceCents;
-        if (totalBalanceCents != null) {
-          setKpi("kpi-balance", formatAmount(totalBalanceCents));
-        } else {
-          const accounts = res.data?.accounts || [];
-          const total = accounts.reduce((sum, a) => sum + (a.balanceCents || a.balance || 0), 0);
-          if (total > 100) {
-            setKpi("kpi-balance", formatAmount(total));
-          } else {
-            setKpi("kpi-balance", formatAmountDirect(total));
-          }
-        }
-      }
-    }).catch(() => {})
-  );
+  // Supplier invoices: amounts in the active period only. Bills outside
+  // the window aren't part of "this month's spend" even if unpaid.
+  promises.push(supplierP.then(res => {
+    if (!res?.ok) return;
+    const invoices = res.data?.invoices || res.data?.supplierInvoices || [];
+    const invoicesInPeriod = _filterByPeriod(invoices, period, ["importDate", "dueDate", "createdAt"]);
+    supplierExpensesCents = invoicesInPeriod.reduce((sum, i) => sum + (i.amountCents || 0), 0);
+    refreshExpensesUI();
+    refreshNet();
+  }).catch(() => {}));
 
-  // Pending invoices
-  promises.push(
-    apiFetch(`/api/client-invoices?organizationId=${state.orgId}`).then(res => {
-      if (res.ok) {
-        const invoices = res.data?.invoices || [];
-        const pending = invoices.filter(i => i.status === "Brouillon" || i.status === "À encaisser").length;
-        pendingCount = pending;
-        setKpi("kpi-pending", String(pending));
-        setKpi("cat-entrees-pending", String(pending));
-        refreshNet();
-      }
-    }).catch(() => {})
-  );
+  // Solde de trésorerie — uses the "solde final" from the most recent
+  // bank statement per account (matching the webapp's bank-accounts page).
+  // Resolves both fetches together so we never display the stored
+  // balanceCents and then flip to the (correct) statement balance.
+  promises.push(Promise.all([accountsP, lastBalancesP]).then(([accRes, balRes]) => {
+    if (!accRes?.ok) return;
+    const accounts = accRes.data?.accounts || [];
+    const balances = (balRes?.ok && balRes.data?.balances) || {};
+    const { totalCents } = computeTotalBalance(accounts, balances);
+    if (totalCents > 100) setKpi("kpi-balance", formatAmount(totalCents));
+    else setKpi("kpi-balance", formatAmountDirect(totalCents));
+  }).catch(() => {}));
 
   await Promise.allSettled(promises);
 
-  // Load recent activity
-  loadRecentActivity();
+  // Recent activity reuses the SAME tickets + invoices responses we
+  // already have — no additional network calls.
+  loadRecentActivity({ ticketsP, invoicesP });
 }
 
-async function loadRecentActivity() {
+async function loadRecentActivity(shared = {}) {
   const container = document.getElementById("recent-activity-list");
   if (!container) return;
 
   try {
-    const [ticketsRes, invoicesRes] = await Promise.allSettled([
-      apiFetch(`/api/tickets?organizationId=${state.orgId}`),
-      apiFetch(`/api/client-invoices?organizationId=${state.orgId}`),
-    ]);
+    // Reuse the dashboard's already-resolving promises when the caller
+    // passes them in; fall through to the cache for ad-hoc calls so the
+    // same URL is never hit twice within the cache window.
+    const orgQ = `?organizationId=${state.orgId}`;
+    const tP = shared.ticketsP || _cachedFetch(`/api/tickets${orgQ}`);
+    const iP = shared.invoicesP || _cachedFetch(`/api/client-invoices${orgQ}`);
+    const [ticketsRes, invoicesRes] = await Promise.allSettled([tP, iP]);
 
     const items = [];
 
@@ -823,57 +1093,194 @@ async function loadRecentActivity() {
 
 let currentBankSeg = "transactions";
 
+// Friendly French labels for the header / sheet so the rest of the
+// code can refer to segments by their internal slug.
+const _BANK_PAGE_LABELS = {
+  transactions: "Transactions",
+  accounts: "Comptes",
+  statements: "Relevés",
+};
+
 function switchBankSegment(seg) {
   currentBankSeg = seg;
+  // Legacy hidden segment-control kept for any old click delegation.
   document.querySelectorAll("#bank-segment-control .segment-btn").forEach(b => b.classList.toggle("active", b.dataset.bankSeg === seg));
   document.querySelectorAll(".bank-segment").forEach(el => { el.style.display = "none"; el.classList.remove("active"); });
   const target = document.getElementById(`bank-seg-${seg}`);
   if (target) { target.style.display = "block"; target.classList.add("active"); }
+
+  // Header switcher: update the visible page name + the sheet's "is-current"
+  // marker. Done here so every code path that swaps the bank segment
+  // (initial mount, sheet click, etc.) keeps the UI consistent.
+  const currentLabelEl = document.getElementById("bank-page-current");
+  if (currentLabelEl) currentLabelEl.textContent = _BANK_PAGE_LABELS[seg] || "Transactions";
+  document.querySelectorAll("#bank-page-sheet .bank-page-item").forEach((it) => {
+    it.classList.toggle("is-current", it.dataset.bankSeg === seg);
+  });
 
   if (seg === "accounts") loadBankAccountsOnly();
   if (seg === "transactions") loadBankTransactions();
   if (seg === "statements") loadBankStatements();
 }
 
+function openBankPageSheet() {
+  const sheet = document.getElementById("bank-page-sheet");
+  if (!sheet) return;
+  sheet.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  const trigger = document.getElementById("bank-page-switcher");
+  if (trigger) trigger.setAttribute("aria-expanded", "true");
+}
+function closeBankPageSheet() {
+  const sheet = document.getElementById("bank-page-sheet");
+  if (!sheet) return;
+  sheet.style.display = "none";
+  document.body.style.overflow = "";
+  const trigger = document.getElementById("bank-page-switcher");
+  if (trigger) trigger.setAttribute("aria-expanded", "false");
+}
+
+// Format an IBAN/RIB with spaces every 4 chars for readability — same
+// rule as the webapp's formatIBANDisplay / formatRIBDisplay helpers.
+function _formatIbanForDisplay(s) {
+  const norm = String(s ?? "").toUpperCase().replace(/\s+/g, "").trim();
+  if (!norm) return "";
+  return norm.match(/.{1,4}/g)?.join(" ") || norm;
+}
+
+// Bank-brand and supplier-brand logos are served from session-protected
+// endpoints (/api/bank-brand-logo/<id>, /api/shared-supplier-brand-logo/<id>,
+// /api/classifier-logo?domain=...), so a plain <img src> 401s in the
+// WebView. We fetch via the bearer-aware helper, cache the blob URL,
+// and swap it into every matching <img> on the page.
+//
+// Used for both bank-account cards and transaction-row supplier logos.
+// Anywhere we want a logo: render <img data-auth-logo-path="…" style="display:none">
+// followed by a fallback element marked [data-auth-logo-fallback]; then
+// call _hydrateAuthLogos(rootEl).
+const _authLogoBlobCache = new Map(); // logoPath → blobUrl
+async function _resolveAuthLogoBlob(path) {
+  if (!path) return null;
+  if (_authLogoBlobCache.has(path)) return _authLogoBlobCache.get(path);
+  try {
+    const url = await fetchAuthenticatedImage(path);
+    if (url) _authLogoBlobCache.set(path, url);
+    return url || null;
+  } catch (_) {
+    return null;
+  }
+}
+function _hydrateAuthLogos(rootEl) {
+  if (!rootEl) return;
+  // Accept the legacy `data-bank-logo-path` attribute too — bank-account
+  // cards still use it; the underlying mechanism is identical.
+  const imgs = rootEl.querySelectorAll("img[data-auth-logo-path], img[data-bank-logo-path]");
+  const byPath = new Map();
+  imgs.forEach((img) => {
+    const p = img.dataset.authLogoPath || img.dataset.bankLogoPath;
+    if (!p) return;
+    if (!byPath.has(p)) byPath.set(p, []);
+    byPath.get(p).push(img);
+  });
+  byPath.forEach(async (els, path) => {
+    const blobUrl = await _resolveAuthLogoBlob(path);
+    if (!blobUrl) return;
+    els.forEach((img) => {
+      img.src = blobUrl;
+      img.style.display = "";
+      const sibling = img.nextElementSibling;
+      const fallback = (sibling && (sibling.matches("[data-auth-logo-fallback]") || sibling.matches("[data-bank-logo-fallback]")))
+        ? sibling
+        : img.parentElement?.querySelector("[data-auth-logo-fallback], [data-bank-logo-fallback]");
+      if (fallback) fallback.style.display = "none";
+    });
+  });
+}
+// Legacy alias kept so anything that still calls _hydrateBankLogos works.
+const _hydrateBankLogos = _hydrateAuthLogos;
+
 async function loadBankAccountsOnly() {
   if (!state.orgId) return;
-  const container = document.getElementById("accounts-list");
+  // The "Comptes" segment lives at #bank-seg-accounts, with the list
+  // anchored at #bank-accounts-list. (#accounts-list was the old layout
+  // and may still be referenced elsewhere — we render to whichever is
+  // actually mounted.)
+  const newContainer = document.getElementById("bank-accounts-list");
+  const legacyContainer = document.getElementById("accounts-list");
+  const container = newContainer || legacyContainer;
+  if (!container) return;
   container.innerHTML = loadingHtml();
   try {
-    const res = await apiFetch(`/api/pro-accounts?organizationId=${state.orgId}`);
-    if (res.ok) {
-      const accounts = res.data?.accounts || [];
-      if (accounts.length === 0) {
-        container.innerHTML = emptyState(
-          `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>`,
-          "Aucun compte bancaire"
-        );
-      } else {
-        container.innerHTML = accounts.map(a => {
-          const name = a.bankName || a.name || "Compte bancaire";
-          const number = a.accountNumber || a.iban || "";
-          const balance = a.balanceCents != null ? formatAmount(a.balanceCents) : (a.balance != null ? formatAmountDirect(a.balance) : "-");
-          const masked = number ? "****" + number.slice(-4) : "";
-          return `<div class="account-card">
-            <div class="account-card-header">
-              <div class="account-card-logo">
-                ${a.logoUrl ? `<img src="${API_BASE_URL}${a.logoUrl}" alt="" />` : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>`}
-              </div>
-              <div>
-                <div class="account-card-name">${escapeHtml(name)}</div>
-                ${masked ? `<div class="account-card-number">${escapeHtml(masked)}</div>` : ""}
-              </div>
-            </div>
-            <div class="account-card-balance">
-              <span class="account-balance-label">Solde</span>
-              <span class="account-balance-value">${balance}</span>
-            </div>
-          </div>`;
-        }).join("");
-      }
-    } else {
+    // Pull the account list AND the per-account "solde final" in parallel
+    // so we never flicker between stale stored balance and the real one.
+    const [accRes, balRes] = await Promise.all([
+      _cachedFetch(`/api/pro-accounts?organizationId=${state.orgId}`),
+      _cachedFetch(`/api/pro-accounts/last-balances?organizationId=${state.orgId}`),
+    ]);
+    if (!accRes?.ok) {
       container.innerHTML = emptyState("", "Erreur de chargement");
+      return;
     }
+    const accounts = accRes.data?.accounts || [];
+    const lastBalances = (balRes?.ok && balRes.data?.balances) || {};
+
+    if (accounts.length === 0) {
+      container.innerHTML = emptyState(
+        `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>`,
+        "Aucun compte bancaire"
+      );
+      return;
+    }
+
+    container.innerHTML = accounts.map(a => {
+      const name = escapeHtml(String(a.name || a.bankName || "Compte bancaire"));
+      const bankName = a.bankName ? escapeHtml(String(a.bankName)) : "Banque non identifiée";
+      const isPrimary = !!a.isPrimary;
+      const id = String(a.id || a._id || "");
+      const lastBal = lastBalances[id];
+      const displayCents = lastBal != null ? Number(lastBal) : Number(a.balanceCents ?? 0);
+      const balanceClass = displayCents > 0 ? "is-positive" : (displayCents < 0 ? "is-negative" : "");
+      const balanceLabel = lastBal != null ? "Dernier solde connu" : "Solde";
+      const balanceFormatted = formatAmount(displayCents, a.currency || "MAD");
+      // Logo: bankLogoUrl from /api/pro-accounts is a relative path to a
+      // session-protected endpoint, so we render an empty <img> with a
+      // data-bank-logo-path attribute and let _hydrateBankLogos() fill
+      // it in via the bearer-aware fetch (blob URL). Until the swap, the
+      // SVG fallback shows so the card never has a blank slot.
+      const buildingSvg = `<svg data-bank-logo-fallback width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-7h6v7"/></svg>`;
+      const logoHtml = a.bankLogoUrl
+        ? `<img data-bank-logo-path="${escapeHtml(String(a.bankLogoUrl))}" alt="" style="display:none" />${buildingSvg}`
+        : buildingSvg;
+
+      const rows = [];
+      if (a.iban) rows.push({ label: "IBAN", value: _formatIbanForDisplay(a.iban) });
+      if (a.rib) rows.push({ label: "RIB", value: _formatIbanForDisplay(a.rib) });
+      if (a.bic) rows.push({ label: "BIC", value: String(a.bic).toUpperCase() });
+      const rowsHtml = rows.length
+        ? `<div class="bank-account-rows">${rows.map(r =>
+            `<div class="bank-account-row"><span class="bank-account-row-label">${r.label}</span><span class="bank-account-row-value">${escapeHtml(r.value)}</span></div>`
+          ).join("")}</div>`
+        : "";
+
+      return `<div class="bank-account-card">
+        <div class="bank-account-card-head">
+          <div class="bank-account-logo">${logoHtml}</div>
+          <div class="bank-account-meta">
+            <div class="bank-account-name-row">
+              <div class="bank-account-name">${name}</div>
+              ${isPrimary ? `<span class="bank-account-primary-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 10 17 15 18 22 12 19 6 22 7 15 2 10 9 9"/></svg>Principal</span>` : ""}
+            </div>
+            <div class="bank-account-bank">${bankName}</div>
+          </div>
+        </div>
+        ${rowsHtml}
+        <div class="bank-account-balance">
+          <div class="bank-account-balance-label">${balanceLabel}</div>
+          <div class="bank-account-balance-amount ${balanceClass}">${escapeHtml(balanceFormatted)}</div>
+        </div>
+      </div>`;
+    }).join("");
+    _hydrateBankLogos(container);
   } catch (e) {
     container.innerHTML = emptyState("", "Erreur de connexion");
   }
@@ -2098,28 +2505,23 @@ async function attachDocToTransaction(transactionId, transactionAmountCents, tra
   let detectedDocType = "";
   let prefilledExtraction = null;
   try {
-    // JSON + base64 instead of multipart — Capacitor's fetch
-    // interception of multipart with binary blobs is unreliable across
-    // devices (Xiaomi MIUI, older Android, custom WebViews). The native
-    // CapacitorHttp.post path with a JSON body is bulletproof.
-    const cRes = await CapacitorHttp.post({
-      url: `${API_BASE_URL}/api/documents/classify`,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${state.token}`,
-      },
-      data: {
-        organizationId: state.orgId,
-        fileName,
-        contentType,
-        base64: captured.base64,
-      },
-      readTimeout: 90,
-      connectTimeout: 30,
+    // Multipart upload — the production /api/documents/classify only
+    // accepts multipart/form-data right now (the JSON+base64 alternate
+    // path exists in the repo but isn't deployed yet). We use plain
+    // fetch+FormData here; Capacitor's interception sometimes flakes on
+    // MIUI but works fine on Samsung / stock Android, which is where
+    // attach is currently failing for the user.
+    const classifyForm = new FormData();
+    classifyForm.append("organizationId", state.orgId);
+    classifyForm.append("file", blob, fileName);
+    const cRes = await fetch(`${API_BASE_URL}/api/documents/classify`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${state.token}` },
+      body: classifyForm,
     });
     console.log("[CLASSIFY] status:", cRes.status);
-    if (cRes.status >= 200 && cRes.status < 300) {
-      const cData = cRes.data || {};
+    if (cRes.ok) {
+      const cData = await cRes.json().catch(() => ({}));
       const ex = Array.isArray(cData?.extraction) ? cData.extraction[0] : cData?.extraction;
       if (ex) {
         prefilledExtraction = ex;
@@ -2130,7 +2532,8 @@ async function attachDocToTransaction(transactionId, transactionAmountCents, tra
         detectedDocType = cData?.classification?.label || "";
       }
     } else {
-      console.warn("[CLASSIFY] failed:", cRes.status, JSON.stringify(cRes.data || {}).slice(0, 200));
+      const errText = await cRes.text().catch(() => "");
+      console.warn("[CLASSIFY] failed:", cRes.status, errText.slice(0, 200));
     }
   } catch (e) {
     console.error("[CLASSIFY] network error:", e?.message || e);
@@ -2222,31 +2625,30 @@ async function attachDocToTransaction(transactionId, transactionAmountCents, tra
     statusMessage: "Rapprochement en cours...",
   });
 
-  // Step 6: commit via the resilient JSON+base64 path. The viewer is
-  // already showing the image + OCR; only the inline status banner
-  // reflects progress.
+  // Step 6: commit the receipt via multipart upload. The production
+  // /api/transactions/{id}/receipts endpoint only accepts multipart;
+  // see classify call above for context. We send `extracted` as a
+  // JSON-stringified field so the OCR payload still rides along and
+  // is persisted on the receipt subdocument server-side (once that
+  // change is deployed). The viewer is already showing the image +
+  // OCR; only the inline status banner reflects progress.
   let aData = null;
   let commitOk = false;
   let aStatus = 0;
   try {
-    const aRes = await CapacitorHttp.post({
-      url: `${API_BASE_URL}/api/transactions/${transactionId}/receipts`,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${state.token}`,
-      },
-      data: {
-        organizationId: state.orgId,
-        fileName,
-        contentType,
-        base64: captured.base64,
-        extracted: prefilledExtraction || null,
-      },
-      readTimeout: 90,
-      connectTimeout: 30,
+    const attachForm = new FormData();
+    attachForm.append("organizationId", state.orgId);
+    attachForm.append("file", blob, fileName);
+    if (prefilledExtraction) {
+      attachForm.append("extracted", JSON.stringify(prefilledExtraction));
+    }
+    const aRes = await fetch(`${API_BASE_URL}/api/transactions/${transactionId}/receipts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${state.token}` },
+      body: attachForm,
     });
     aStatus = aRes.status;
-    aData = aRes.data || {};
+    aData = await aRes.json().catch(() => ({}));
     console.log("[ATTACH] status:", aStatus);
     if (aStatus >= 200 && aStatus < 300) {
       commitOk = true;
@@ -2454,9 +2856,8 @@ function _txCategoryAvatar(tx) {
 function _renderBankBalanceCard(transactions) {
   const card = document.getElementById("bank-balance-card");
   if (!card) return;
-  // We don't have an "accounts" list in this scope; derive a useful summary
-  // from the transactions: net flow this month + total tx count.
-  let netCents = 0;
+
+  // Month flow + tx count come from the transactions list.
   let monthIn = 0;
   let monthOut = 0;
   const now = new Date();
@@ -2465,24 +2866,41 @@ function _renderBankBalanceCard(transactions) {
   for (const tx of transactions) {
     const c = Math.abs(Number(tx.amountCents || 0));
     const debit = isDebitTx(tx);
-    netCents += debit ? -c : c;
     const d = tx.date ? new Date(tx.date) : null;
     if (d && d.getFullYear() === yyyy && d.getMonth() === mm) {
       if (debit) monthOut += c; else monthIn += c;
     }
   }
   const monthFlow = monthIn - monthOut;
+
   const amountEl = document.getElementById("bank-balance-amount");
   const acctEl = document.getElementById("bank-balance-accounts");
   const flowEl = document.getElementById("bank-balance-flow");
-  if (amountEl) amountEl.textContent = formatAmount(netCents);
-  if (acctEl) acctEl.textContent = `${transactions.length} transaction${transactions.length > 1 ? "s" : ""}`;
+
+  // Solde total = sum of "solde final" across accounts (last closing
+  // balance from imported statements, fallback to stored balanceCents).
+  // Mirrors the webapp's compte-pro/bank-accounts page. We query both
+  // endpoints; the cache makes this near-instant when the dashboard
+  // already loaded them.
+  if (amountEl && state.orgId) {
+    Promise.all([
+      _cachedFetch(`/api/pro-accounts?organizationId=${state.orgId}`),
+      _cachedFetch(`/api/pro-accounts/last-balances?organizationId=${state.orgId}`),
+    ]).then(([accRes, balRes]) => {
+      if (!accRes?.ok) return;
+      const accounts = accRes.data?.accounts || [];
+      const balances = (balRes?.ok && balRes.data?.balances) || {};
+      const { totalCents, count } = computeTotalBalance(accounts, balances);
+      amountEl.textContent = formatAmount(totalCents);
+      if (acctEl) acctEl.textContent = `${count} compte${count > 1 ? "s" : ""}`;
+      card.classList.toggle("bank-balance-card-positive", totalCents >= 0);
+      card.classList.toggle("bank-balance-card-negative", totalCents < 0);
+    }).catch(() => {});
+  }
   if (flowEl) {
     const sign = monthFlow >= 0 ? "+" : "−";
     flowEl.textContent = `${sign}${formatAmount(Math.abs(monthFlow))} ce mois`;
   }
-  card.classList.toggle("bank-balance-card-positive", netCents >= 0);
-  card.classList.toggle("bank-balance-card-negative", netCents < 0);
 }
 // Last-fetched, fully-formed transactions. Used by the realtime client-side
 // search to filter without a network round-trip.
@@ -2597,6 +3015,10 @@ function _renderTxRows(transactions) {
     html += list.map(_renderTxRowHtml).join("");
   }
   txContainer.innerHTML = html;
+  // Resolve every <img data-auth-logo-path> through the bearer-aware
+  // helper and swap blob URLs in place. Cached per session, so realtime
+  // search re-renders don't re-fetch the same logos.
+  _hydrateAuthLogos(txContainer);
 }
 
 function _applyTxSearchAndRender() {
@@ -2609,6 +3031,13 @@ function _applyTxSearchAndRender() {
   // the search to drill in without their balance reading "lying" to them.
   _renderBankBalanceCard(_txCachedTransactions);
 }
+
+// Map: accountId → bankLogoUrl. Populated on every loadBankTransactions
+// run so rows that represent a bank operation (commission, prelevement,
+// frais bancaires) can fall back to the bank's logo when the supplier
+// brand logo is missing. Mirrors the webapp's "if it's a bank fee, the
+// counterparty IS the bank" intent.
+let _txAccountBankLogoMap = new Map();
 
 async function loadBankTransactions() {
   if (!state.orgId) return;
@@ -2624,9 +3053,21 @@ async function loadBankTransactions() {
   if (to) url += `&to=${to}`;
   if (direction) url += `&direction=${direction}`;
   try {
-    const res = await apiFetch(url);
-    if (res.ok) {
-      _txCachedTransactions = res.data?.transactions || [];
+    const [txRes, accRes] = await Promise.all([
+      apiFetch(url),
+      _cachedFetch(`/api/pro-accounts?organizationId=${state.orgId}`),
+    ]);
+    // Refresh the accountId → bank logo lookup before rendering rows.
+    _txAccountBankLogoMap = new Map();
+    if (accRes?.ok) {
+      const accounts = accRes.data?.accounts || [];
+      for (const a of accounts) {
+        const id = String(a?.id || a?._id || "");
+        if (id && a?.bankLogoUrl) _txAccountBankLogoMap.set(id, String(a.bankLogoUrl));
+      }
+    }
+    if (txRes.ok) {
+      _txCachedTransactions = txRes.data?.transactions || [];
       _applyTxSearchAndRender();
       return;
     } else {
@@ -2635,6 +3076,24 @@ async function loadBankTransactions() {
   } catch (e) {
     txContainer.innerHTML = emptyState("", "Erreur de connexion");
   }
+}
+
+// Bank operations: amounts paid to / received from the bank itself
+// (frais de tenue de compte, commissions sur virement, prélèvements
+// SEPA bancaires, etc.). For these the counterparty IS the bank and
+// the row should show the bank logo, not a merchant logo.
+const _BANK_OPERATION_TYPES = new Set([
+  "commission", "prelevement", "frais", "frais_bancaires",
+  "interets", "agios", "abonnement", "package",
+]);
+function _isBankOperation(tx) {
+  const t = String(tx?.operationType || "").toLowerCase();
+  if (t && _BANK_OPERATION_TYPES.has(t)) return true;
+  // Heuristic fallback when operationType is null but the description
+  // makes the bank-fee nature obvious.
+  const d = String(tx?.description || "").toLowerCase();
+  if (!d) return false;
+  return /(commission|frais\s+bancair|frais\s+de\s+tenue|agios|int[ée]r[êe]ts|abonnement\s+bancaire|tva\s+sur\s+commission)/.test(d);
 }
 
 // Renders a single tx row's HTML and registers its data in _txDataIndex.
@@ -2650,13 +3109,26 @@ function _renderTxRowHtml(tx) {
   const hasMatchedItems = Array.isArray(tx.matchedItems) && tx.matchedItems.some(it => it && it.pdfUrl);
   const hasReceipt = receipts.length > 0 || tx.matched === true || hasMatchedItems;
   const cat = _txCategoryAvatar(tx);
-  // Avatar shows the merchant's initial (first letter of the description's
-  // first meaningful word) — same look the contacts/clients lists use,
-  // tinted by category. When the API ships a real logo we still prefer it.
+  // Avatar priority (mirrors webapp/TransactionsTable):
+  //   1. supplierBrandLogoUrl from the API — this is either an uploaded
+  //      brand logo (/api/shared-supplier-brand-logo/<id>) or a clearbit-
+  //      style domain logo (/api/classifier-logo?domain=...).
+  //   2. If it's a bank operation (frais bancaires, commission, etc.)
+  //      use the bank logo of the source account — the counterparty IS
+  //      the bank in that case.
+  //   3. Initial avatar tinted by category (same look as the contacts
+  //      list).
   const initial = _txAvatarInitial(desc);
-  const logoHtml = tx.logoUrl
-    ? `<img src="${API_BASE_URL}${tx.logoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />`
-    : `<span class="tx-avatar-initial">${escapeHtml(initial)}</span>`;
+  let authLogoPath = tx.supplierBrandLogoUrl ? String(tx.supplierBrandLogoUrl) : null;
+  if (!authLogoPath && _isBankOperation(tx)) {
+    const accId = tx.accountId ? String(tx.accountId) : "";
+    const bankPath = accId ? _txAccountBankLogoMap.get(accId) : null;
+    if (bankPath) authLogoPath = bankPath;
+  }
+  const initialFallback = `<span class="tx-avatar-initial" data-auth-logo-fallback>${escapeHtml(initial)}</span>`;
+  const logoHtml = authLogoPath
+    ? `<img data-auth-logo-path="${escapeHtml(authLogoPath)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:none" />${initialFallback}`
+    : initialFallback;
   const justifiedPill = hasReceipt
     ? `<span class="tx-status-pill tx-status-justified">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
@@ -3476,6 +3948,457 @@ async function recoverPendingScan() {
   }
 }
 
+/* ============================================================
+   OpenCV.js custom document scanner.
+
+   Why we built this: ML Kit's GmsDocumentScanner is a closed Activity —
+   we cannot inject coaching messages or a real-time edge overlay into
+   its UI. To give the user "rapprochez-vous", "tenez stable", "trop
+   sombre" feedback as they frame, we run our own preview + analysis
+   inside the WebView using getUserMedia + OpenCV.js.
+
+   Pipeline per analyzed frame:
+     downsample → grayscale → Gaussian blur → Canny → findContours
+     → approxPolyDP (keep 4-vertex polygons) → pick largest area
+     → score (area, brightness, focus, stability)
+     → coach message + colour reflects the worst-scoring axis
+     → auto-capture once the score holds above the threshold for ~600ms
+
+   Capture path: pull a fresh full-res frame from the video, run
+   getPerspectiveTransform + warpPerspective with the detected corners
+   to deskew, encode JPEG @ 90, return base64. Output is shape- and
+   size-compatible with the ML Kit plugin so downstream OCR is unchanged.
+   ============================================================ */
+
+let _cvReady = null;
+function ensureOpenCV() {
+  if (window.cv && window.cv.Mat) return Promise.resolve(window.cv);
+  if (_cvReady) return _cvReady;
+  _cvReady = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "js/opencv.js";
+    script.async = true;
+    script.onerror = () => { _cvReady = null; reject(new Error("opencv-load-failed")); };
+    script.onload = () => {
+      // OpenCV.js exposes `cv` as a global Module. It's not ready until
+      // the underlying WASM has booted. Older builds expose
+      // `cv.onRuntimeInitialized`; recent builds resolve `cv` itself
+      // once initialised. Poll cheaply — booting takes ~1–3 s on mid
+      // Android, the user is already looking at the camera preview.
+      const start = Date.now();
+      const tick = () => {
+        if (window.cv && window.cv.Mat) return resolve(window.cv);
+        if (Date.now() - start > 15000) {
+          _cvReady = null;
+          return reject(new Error("opencv-init-timeout"));
+        }
+        setTimeout(tick, 60);
+      };
+      tick();
+    };
+    document.head.appendChild(script);
+  });
+  return _cvReady;
+}
+
+// Order 4 corners as TL, TR, BR, BL — needed for getPerspectiveTransform
+// because the destination quad is given in that fixed order.
+function _orderCorners(pts) {
+  // pts is [{x,y}, ...] (4 points)
+  // TL = min(x+y), BR = max(x+y), TR = min(y-x), BL = max(y-x).
+  let tl = pts[0], tr = pts[0], br = pts[0], bl = pts[0];
+  let tlS = Infinity, brS = -Infinity, trS = Infinity, blS = -Infinity;
+  for (const p of pts) {
+    const s = p.x + p.y;
+    const d = p.y - p.x;
+    if (s < tlS) { tl = p; tlS = s; }
+    if (s > brS) { br = p; brS = s; }
+    if (d < trS) { tr = p; trS = d; }
+    if (d > blS) { bl = p; blS = d; }
+  }
+  return [tl, tr, br, bl];
+}
+
+// Detect the largest 4-corner contour in a downsampled frame and
+// score how "good" the framing is. Returns null if nothing usable.
+function _detectDocument(cv, srcMat, frameW, frameH) {
+  const gray = new cv.Mat();
+  const blur = new cv.Mat();
+  const edges = new cv.Mat();
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  let bestPolyXY = null, bestArea = 0;
+
+  try {
+    cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+    // Canny thresholds are forgiving — we approxPolyDP downstream so
+    // edge noise gets folded into the dominant rectangle anyway.
+    cv.Canny(blur, edges, 50, 150);
+    // Dilate slightly so broken edges from glossy paper still close.
+    const k = cv.Mat.ones(3, 3, cv.CV_8U);
+    cv.dilate(edges, edges, k);
+    k.delete();
+
+    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+    const minArea = frameW * frameH * 0.12; // doc must cover ≥ 12% of the frame
+
+    for (let i = 0; i < contours.size(); i++) {
+      const c = contours.get(i);
+      const area = cv.contourArea(c);
+      if (area < minArea || area < bestArea) { c.delete(); continue; }
+
+      const peri = cv.arcLength(c, true);
+      const approx = new cv.Mat();
+      cv.approxPolyDP(c, approx, 0.02 * peri, true);
+      if (approx.rows === 4) {
+        const pts = [];
+        for (let r = 0; r < 4; r++) {
+          pts.push({ x: approx.data32S[r * 2], y: approx.data32S[r * 2 + 1] });
+        }
+        bestPolyXY = pts;
+        bestArea = area;
+      }
+      approx.delete();
+      c.delete();
+    }
+  } finally {
+    gray.delete();
+    blur.delete();
+    edges.delete();
+    contours.delete();
+    hierarchy.delete();
+  }
+
+  if (!bestPolyXY) return null;
+  return { corners: _orderCorners(bestPolyXY), area: bestArea };
+}
+
+// Brightness + focus on a downsampled grayscale Mat. Cheap (one pass).
+function _measureFrame(cv, srcMat) {
+  const gray = new cv.Mat();
+  const lap = new cv.Mat();
+  const mean = new cv.Mat();
+  const stddev = new cv.Mat();
+  try {
+    cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY);
+    cv.Laplacian(gray, lap, cv.CV_64F);
+    cv.meanStdDev(lap, mean, stddev);
+    const focus = stddev.doubleAt(0, 0); // higher = sharper
+    cv.meanStdDev(gray, mean, stddev);
+    const brightness = mean.doubleAt(0, 0);
+    return { brightness, focus };
+  } finally {
+    gray.delete();
+    lap.delete();
+    mean.delete();
+    stddev.delete();
+  }
+}
+
+// Compute Euclidean distance between two corner sets (averaged) — used
+// to detect whether the doc is "stable" enough to auto-capture.
+function _cornerDelta(a, b) {
+  if (!a || !b) return Infinity;
+  let total = 0;
+  for (let i = 0; i < 4; i++) {
+    const dx = a[i].x - b[i].x;
+    const dy = a[i].y - b[i].y;
+    total += Math.sqrt(dx * dx + dy * dy);
+  }
+  return total / 4;
+}
+
+// Captures a fresh frame from the video element and warps it using the
+// detected corners. Corners are in downsampled coordinates — we scale
+// them up to the video's natural dimensions before warping.
+function _captureWithCorners(cv, video, corners, scale) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const tmp = document.createElement("canvas");
+  tmp.width = vw; tmp.height = vh;
+  tmp.getContext("2d").drawImage(video, 0, 0, vw, vh);
+  const src = cv.imread(tmp);
+  const tl = { x: corners[0].x * scale, y: corners[0].y * scale };
+  const tr = { x: corners[1].x * scale, y: corners[1].y * scale };
+  const br = { x: corners[2].x * scale, y: corners[2].y * scale };
+  const bl = { x: corners[3].x * scale, y: corners[3].y * scale };
+  const wTop = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const wBot = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const hLeft = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const hRight = Math.hypot(br.x - tr.x, br.y - tr.y);
+  const W = Math.max(50, Math.round(Math.max(wTop, wBot)));
+  const H = Math.max(50, Math.round(Math.max(hLeft, hRight)));
+  const srcArr = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
+  const dstArr = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, W, 0, W, H, 0, H]);
+  const M = cv.getPerspectiveTransform(srcArr, dstArr);
+  const out = new cv.Mat();
+  try {
+    cv.warpPerspective(src, out, M, new cv.Size(W, H), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = W; outCanvas.height = H;
+    cv.imshow(outCanvas, out);
+    const dataUrl = outCanvas.toDataURL("image/jpeg", 0.9);
+    const base64 = dataUrl.split(",")[1];
+    return { base64, format: "jpeg" };
+  } finally {
+    src.delete();
+    out.delete();
+    M.delete();
+    srcArr.delete();
+    dstArr.delete();
+  }
+}
+
+// Captures the current full-resolution frame without any warp — used
+// when the user taps the manual capture button without a stable
+// detection.
+function _captureRaw(video) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const c = document.createElement("canvas");
+  c.width = vw; c.height = vh;
+  c.getContext("2d").drawImage(video, 0, 0, vw, vh);
+  const dataUrl = c.toDataURL("image/jpeg", 0.9);
+  return { base64: dataUrl.split(",")[1], format: "jpeg" };
+}
+
+async function customDocumentScan() {
+  const overlay = document.getElementById("cv-scanner");
+  const video = overlay.querySelector("video");
+  const canvas = overlay.querySelector("canvas");
+  const coach = overlay.querySelector(".cv-scanner-coach");
+  const coachText = overlay.querySelector(".cv-coach-text");
+  const cancelBtn = overlay.querySelector(".cv-scanner-cancel");
+  const captureBtn = overlay.querySelector(".cv-scanner-capture");
+  const fallbackBtn = overlay.querySelector(".cv-scanner-fallback");
+  const loading = overlay.querySelector(".cv-scanner-loading");
+
+  // Show overlay with loading state immediately — OpenCV booting + camera
+  // permission can take a couple of seconds, the user needs feedback.
+  overlay.style.display = "flex";
+  overlay.setAttribute("aria-hidden", "false");
+  loading.style.display = "flex";
+  coach.dataset.state = "searching";
+  coachText.textContent = "Recherche d'un document…";
+
+  // Camera stream (back camera, prefer high res — we downsample for
+  // analysis but warp at full res so the OCR sees crisp text).
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+      audio: false,
+    });
+  } catch (e) {
+    overlay.style.display = "none";
+    overlay.setAttribute("aria-hidden", "true");
+    throw new Error("camera-denied:" + (e?.message || ""));
+  }
+  video.srcObject = stream;
+  await new Promise((res) => {
+    if (video.readyState >= 2) res();
+    else video.onloadedmetadata = () => res();
+  });
+  await video.play().catch(() => {});
+
+  // Boot OpenCV. We do this *after* the camera is up so the preview is
+  // already showing while wasm parses. ~10 MB script: 1–3 s on Android.
+  let cv;
+  try {
+    cv = await ensureOpenCV();
+  } catch (e) {
+    // OpenCV failed: cleanup and bubble — captureTicketPhoto will fall
+    // back to ML Kit.
+    stream.getTracks().forEach((t) => t.stop());
+    video.srcObject = null;
+    overlay.style.display = "none";
+    overlay.setAttribute("aria-hidden", "true");
+    throw new Error("opencv-failed:" + (e?.message || ""));
+  }
+  loading.style.display = "none";
+
+  return new Promise((resolve, reject) => {
+    // Analysis canvas (offscreen, downsampled) — keeps the per-frame
+    // cost well under one display frame on mid-range Android.
+    const work = document.createElement("canvas");
+    let lastCorners = null;
+    let stableSince = 0;
+    let raf = 0;
+    let ticking = true;
+    let processing = false;
+    let lastAnalysis = 0;
+
+    const cleanup = () => {
+      ticking = false;
+      cancelAnimationFrame(raf);
+      try { stream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+      video.srcObject = null;
+      // Clear overlay canvas so the next session starts blank.
+      const ctx = canvas.getContext("2d");
+      ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
+      overlay.style.display = "none";
+      overlay.setAttribute("aria-hidden", "true");
+      cancelBtn.onclick = null;
+      captureBtn.onclick = null;
+      fallbackBtn.onclick = null;
+    };
+
+    const finishWith = (result) => { cleanup(); resolve(result); };
+    const finishCancel = (reason) => { cleanup(); reject(new Error(reason)); };
+
+    cancelBtn.onclick = () => finishCancel("cancelled");
+    fallbackBtn.onclick = () => finishCancel("fallback-mlkit");
+    captureBtn.onclick = () => {
+      try {
+        if (lastCorners) {
+          const vw = video.videoWidth || 1;
+          const scale = vw / (work.width || vw);
+          finishWith(_captureWithCorners(cv, video, lastCorners, scale));
+        } else {
+          finishWith(_captureRaw(video));
+        }
+      } catch (e) {
+        finishCancel("capture-error:" + (e?.message || ""));
+      }
+    };
+
+    const setCoach = (state, text) => {
+      coach.dataset.state = state;
+      coachText.textContent = text;
+    };
+
+    // Match the overlay canvas to the video's display size so we can draw
+    // the detected quad in the same coordinate space the user sees.
+    const fitOverlayCanvas = () => {
+      const r = video.getBoundingClientRect();
+      canvas.width = Math.round(r.width);
+      canvas.height = Math.round(r.height);
+    };
+    fitOverlayCanvas();
+    window.addEventListener("resize", fitOverlayCanvas);
+
+    const drawQuad = (corners, ok) => {
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!corners) return;
+      // Map corners from work-canvas coords to overlay-canvas coords.
+      const sx = canvas.width / (work.width || canvas.width);
+      const sy = canvas.height / (work.height || canvas.height);
+      ctx.beginPath();
+      ctx.moveTo(corners[0].x * sx, corners[0].y * sy);
+      for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x * sx, corners[i].y * sy);
+      ctx.closePath();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = ok ? "rgba(16, 185, 129, 0.95)" : "rgba(255, 255, 255, 0.85)";
+      ctx.stroke();
+      ctx.fillStyle = ok ? "rgba(16, 185, 129, 0.18)" : "rgba(255, 255, 255, 0.06)";
+      ctx.fill();
+    };
+
+    const tick = () => {
+      if (!ticking) return;
+      raf = requestAnimationFrame(tick);
+      // Cap analysis at ~12 fps — plenty for coaching, leaves CPU
+      // headroom for the WebView to paint smoothly.
+      const now = performance.now();
+      if (processing || now - lastAnalysis < 80) return;
+      lastAnalysis = now;
+      processing = true;
+
+      try {
+        if (video.readyState < 2 || !video.videoWidth) return;
+        const targetW = 480;
+        const scale = targetW / video.videoWidth;
+        const targetH = Math.max(1, Math.round(video.videoHeight * scale));
+        if (work.width !== targetW || work.height !== targetH) {
+          work.width = targetW; work.height = targetH;
+        }
+        const ctx = work.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, targetW, targetH);
+        const src = cv.imread(work);
+
+        let corners = null, area = 0;
+        let brightness = 128, focus = 0;
+        try {
+          const det = _detectDocument(cv, src, targetW, targetH);
+          if (det) { corners = det.corners; area = det.area; }
+          const meas = _measureFrame(cv, src);
+          brightness = meas.brightness;
+          focus = meas.focus;
+        } finally {
+          src.delete();
+        }
+
+        // Score & coach — pick the worst axis as the message.
+        let state = "searching";
+        let text = "Recherche d'un document…";
+        let okForCapture = false;
+
+        if (!corners) {
+          state = "searching";
+          text = "Recherche d'un document…";
+        } else {
+          const coverage = area / (targetW * targetH);
+          const delta = _cornerDelta(corners, lastCorners);
+          if (coverage < 0.22) {
+            state = "bad";
+            text = "Rapprochez-vous";
+          } else if (brightness < 60) {
+            state = "bad";
+            text = "Trop sombre — éclairez la scène";
+          } else if (brightness > 235) {
+            state = "bad";
+            text = "Trop lumineux — évitez les reflets";
+          } else if (focus < 60) {
+            state = "bad";
+            text = "Image floue — tenez stable";
+          } else if (delta > 18) {
+            state = "bad";
+            text = "Tenez stable…";
+          } else {
+            state = "ready";
+            text = "Document détecté";
+            okForCapture = true;
+          }
+        }
+
+        if (okForCapture) {
+          if (stableSince === 0) stableSince = now;
+          const held = now - stableSince;
+          if (held > 200) state = "capturing";
+          if (held > 600) {
+            // Auto-capture.
+            try {
+              const vw = video.videoWidth || 1;
+              const upscale = vw / targetW;
+              finishWith(_captureWithCorners(cv, video, corners, upscale));
+            } catch (e) {
+              finishCancel("capture-error:" + (e?.message || ""));
+            }
+            return;
+          }
+        } else {
+          stableSince = 0;
+        }
+
+        lastCorners = corners;
+        setCoach(state, state === "capturing" ? "Capture en cours" : text);
+        drawQuad(corners, state === "ready" || state === "capturing");
+      } catch (e) {
+        // Per-frame errors are non-fatal — keep ticking. Surface only
+        // if it persists.
+        // console.warn("cv-tick:", e);
+      } finally {
+        processing = false;
+      }
+    };
+    tick();
+  });
+}
+
 async function captureTicketPhoto(source) {
   try {
     // Show pre-scan tips on the first scan of the session. The user can
@@ -3827,58 +4750,312 @@ function showTicketError(msg) {
   document.getElementById("scan-error").style.display = "block";
 }
 
+/* ============================================================
+   Receipts page (Sorties → Reçus) — rendering, multi-select, bulk
+   share / delete. Kept in sync visually with the bank transactions
+   page so the user is in one consistent design system.
+   ============================================================ */
+
+// In-memory store of the last-loaded ticket list so the bulk-action
+// handlers don't need to refetch when sharing. Keyed by ticket id.
+let _ticketsCache = new Map();
+
+// Multi-select state — when true, rows render a checkbox + tap toggles
+// selection instead of opening detail.
+let _ticketSelectMode = false;
+const _selectedTicketIds = new Set();
+
+function _ticketAvatarInitial(name) {
+  const n = String(name || "").trim();
+  if (!n) return "?";
+  const norm = n.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return norm.charAt(0).toUpperCase();
+}
+
+function _renderTicketRow(t) {
+  const id = String(t._id || t.id || "");
+  const name = t.beneficiaire || "Reçu";
+  const amount = t.amountCents != null ? formatAmount(t.amountCents, t.currency || "MAD") : "-";
+  const date = formatDate(t.paymentDate || t.createdAt);
+  const matched = !!t.matchedTransactionId;
+  const initial = _ticketAvatarInitial(name);
+  const isSelected = _selectedTicketIds.has(id);
+  // Logo priority (mirrors transactions row + bank account cards):
+  //   1. t.logoUrl from /api/tickets — auth-protected
+  //      `/api/classifier-logo?domain=…` path. We fetch via the bearer
+  //      helper and swap a blob URL in place.
+  //   2. t.classifier.logo_domain → public clearbit URL as a quick win
+  //      while/if the auth path isn't available.
+  //   3. Initial avatar.
+  const authLogoPath = t.logoUrl || (t.classifier?.logoUrl && String(t.classifier.logoUrl).startsWith("/") ? t.classifier.logoUrl : null);
+  const clearbitDomain = t.classifier?.logo_domain || null;
+  const initialFallback = `<span class="rcp-avatar-initial" data-auth-logo-fallback>${escapeHtml(initial)}</span>`;
+  let logoHtml;
+  if (authLogoPath) {
+    logoHtml = `<img data-auth-logo-path="${escapeHtml(String(authLogoPath))}" alt="" style="display:none" />${initialFallback}`;
+  } else if (clearbitDomain) {
+    // Clearbit is direct img-loadable (no auth) — show it immediately,
+    // fall back to the initial via onerror if the merchant isn't there.
+    logoHtml = `<img src="https://logo.clearbit.com/${escapeHtml(clearbitDomain)}" alt="" onerror="this.remove()" />${initialFallback.replace('data-auth-logo-fallback', '')}`;
+  } else {
+    logoHtml = initialFallback.replace('data-auth-logo-fallback', '');
+  }
+  const pill = matched
+    ? `<span class="rcp-row-pill rcp-pill-matched"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Rapproché</span>`
+    : `<span class="rcp-row-pill rcp-pill-pending"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>En attente</span>`;
+  return `<div class="rcp-row ${isSelected ? "is-selected" : ""}" data-ticket-id="${escapeHtml(id)}">
+    <div class="rcp-checkbox" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="rcp-row-icon" style="background:#eef2ff;color:#4f46e5">${logoHtml}</div>
+    <div class="rcp-row-body">
+      <div class="rcp-row-line1">
+        <span class="rcp-row-name">${escapeHtml(name)}</span>
+        <span class="rcp-row-amount">${escapeHtml(amount)}</span>
+      </div>
+      <div class="rcp-row-line2">
+        <span class="rcp-row-meta">${escapeHtml(date || "")}</span>
+        ${pill}
+      </div>
+    </div>
+  </div>`;
+}
+
 async function loadHistory() {
   if (!state.orgId) return;
   const container = document.getElementById("tickets-list");
+  if (!container) return;
 
   try {
     const res = await apiFetch(`/api/tickets?organizationId=${state.orgId}`);
-    if (res.ok) {
-      const tickets = Array.isArray(res.data) ? res.data : res.data?.tickets || [];
-      if (tickets.length === 0) {
-        container.innerHTML = `<div class="history-empty">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          <p>Aucun recu pour le moment</p>
-          <p style="font-size:12px">Scannez ou importez votre premier recu</p></div>`;
-        return;
-      }
-
-      const sorted = tickets.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 30);
-      container.innerHTML = sorted
-        .map((t) => {
-          const id = t._id || t.id;
-          const name = t.beneficiaire || "Recu";
-          const initial = name.trim().charAt(0).toUpperCase();
-          const amount = t.amountCents != null ? formatAmount(t.amountCents, t.currency || "MAD") : "-";
-          const currency = t.currency || "MAD";
-          const date = formatDate(t.paymentDate || t.createdAt);
-          const matched = t.matchedTransactionId;
-          const logoUrl = t.logoUrl || t.classifier?.logo_domain;
-          const avatarContent = logoUrl
-            ? `<img src="${logoUrl.startsWith('/') ? API_BASE_URL + logoUrl : 'https://logo.clearbit.com/' + logoUrl}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${initial}'">`
-            : initial;
-
-          return `<div class="ticket-card" onclick="showTicketDetail('${id}')">
-            <div class="ticket-card-avatar">${avatarContent}</div>
-            <div class="ticket-card-info">
-              <div class="ticket-card-name">${escapeHtml(name)}</div>
-              <div class="ticket-card-meta">
-                <span>${date}</span>
-                ${matched ? '<span class="ticket-card-badge badge-matched">Rapproche</span>' : '<span class="ticket-card-badge badge-pending">En attente</span>'}
-              </div>
-            </div>
-            <div class="ticket-card-amount">
-              <div class="ticket-card-amount-value">${amount}</div>
-              <div class="ticket-card-amount-currency">${currency}</div>
-            </div>
-            <div class="ticket-card-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></div>
-          </div>`;
-        })
-        .join("");
+    if (!res.ok) {
+      container.innerHTML = emptyState("", "Erreur de chargement");
+      return;
     }
+    const tickets = Array.isArray(res.data) ? res.data : res.data?.tickets || [];
+    _ticketsCache = new Map(tickets.map((t) => [String(t._id || t.id || ""), t]));
+
+    if (tickets.length === 0) {
+      _selectedTicketIds.clear();
+      _exitTicketSelectMode();
+      container.innerHTML = `<div class="history-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <p>Aucun reçu pour le moment</p>
+        <p style="font-size:12px">Scannez ou importez votre premier reçu</p></div>`;
+      return;
+    }
+
+    const sorted = [...tickets].sort((a, b) => new Date(b.createdAt || b.paymentDate || 0) - new Date(a.createdAt || a.paymentDate || 0));
+
+    // Group by day so the page reads like the bank transactions list.
+    const groups = new Map();
+    for (const t of sorted) {
+      const raw = t.paymentDate || t.createdAt || null;
+      const key = raw ? new Date(raw).toDateString() : "—";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+    const dayLabel = (key) => {
+      if (key === "—") return "Sans date";
+      const dd = new Date(key);
+      if (isNaN(dd.getTime())) return key;
+      if (dd.toDateString() === today.toDateString()) return "Aujourd'hui";
+      if (dd.toDateString() === yest.toDateString()) return "Hier";
+      return dd.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" });
+    };
+
+    let html = "";
+    for (const [key, list] of groups) {
+      const dayCount = list.length;
+      html += `<div class="tx-day-header">
+        <span class="tx-day-label">${escapeHtml(dayLabel(key))}</span>
+        <span class="tx-day-total">${dayCount} reçu${dayCount > 1 ? "s" : ""}</span>
+      </div>`;
+      html += list.map(_renderTicketRow).join("");
+    }
+    container.innerHTML = html;
+    // Resolve any /api/classifier-logo or supplier-logo paths through
+    // the bearer-aware fetch + blob URL swap. Same machinery used for
+    // bank account cards and transaction rows; logos are cached so
+    // rerenders don't re-hit the network.
+    _hydrateAuthLogos(container);
+    // Drop any selected ids that no longer exist on the page (e.g. after
+    // a bulk delete + reload).
+    for (const id of Array.from(_selectedTicketIds)) {
+      if (!_ticketsCache.has(id)) _selectedTicketIds.delete(id);
+    }
+    _renderTicketsMultiBar();
   } catch (e) {
     console.error("loadHistory:", e);
+    container.innerHTML = emptyState("", "Erreur de connexion");
   }
+}
+
+/* ----- Multi-select machinery for receipts ----- */
+
+function _enterTicketSelectMode() {
+  if (_ticketSelectMode) return;
+  _ticketSelectMode = true;
+  document.getElementById("dir-tab-tickets")?.classList.add("is-select-mode");
+  document.querySelector(".tickets-main")?.classList.add("is-select-mode");
+  _renderTicketsMultiBar();
+}
+function _exitTicketSelectMode() {
+  if (!_ticketSelectMode) return;
+  _ticketSelectMode = false;
+  _selectedTicketIds.clear();
+  document.getElementById("dir-tab-tickets")?.classList.remove("is-select-mode");
+  document.querySelector(".tickets-main")?.classList.remove("is-select-mode");
+  document.querySelectorAll("#tickets-list .rcp-row.is-selected").forEach((el) => el.classList.remove("is-selected"));
+  _renderTicketsMultiBar();
+}
+function _selectAllTickets() {
+  if (!_ticketSelectMode) _enterTicketSelectMode();
+  // Toggle: if everything is already selected, clear; otherwise select all.
+  const allIds = Array.from(_ticketsCache.keys());
+  const allSelected = allIds.length > 0 && allIds.every((id) => _selectedTicketIds.has(id));
+  if (allSelected) {
+    _selectedTicketIds.clear();
+    document.querySelectorAll("#tickets-list .rcp-row.is-selected").forEach((el) => el.classList.remove("is-selected"));
+  } else {
+    for (const id of allIds) _selectedTicketIds.add(id);
+    document.querySelectorAll("#tickets-list .rcp-row").forEach((el) => {
+      if (el.dataset.ticketId && _selectedTicketIds.has(el.dataset.ticketId)) el.classList.add("is-selected");
+    });
+  }
+  _renderTicketsMultiBar();
+}
+function _toggleTicketSelectMode() {
+  if (_ticketSelectMode) _exitTicketSelectMode();
+  else _enterTicketSelectMode();
+}
+function _toggleTicketSelection(id, rowEl) {
+  if (!_ticketSelectMode) return;
+  if (_selectedTicketIds.has(id)) {
+    _selectedTicketIds.delete(id);
+    rowEl?.classList.remove("is-selected");
+  } else {
+    _selectedTicketIds.add(id);
+    rowEl?.classList.add("is-selected");
+  }
+  _renderTicketsMultiBar();
+}
+function _renderTicketsMultiBar() {
+  const bar = document.getElementById("tickets-multi-action-bar");
+  const n = _selectedTicketIds.size;
+  // Header count (in select-mode header)
+  const headerNum = document.getElementById("tickets-select-count-num");
+  const headerSuffix = document.getElementById("tickets-select-count-suffix");
+  if (headerNum) headerNum.textContent = String(n);
+  if (headerSuffix) headerSuffix.textContent = n > 1 ? "s" : "";
+  if (!bar) return;
+  if (!_ticketSelectMode) { bar.style.display = "none"; return; }
+  bar.style.display = "inline-flex";
+  document.getElementById("btn-tickets-multi-share")?.toggleAttribute("disabled", n === 0);
+  document.getElementById("btn-tickets-multi-delete")?.toggleAttribute("disabled", n === 0);
+}
+
+async function _bulkDeleteSelectedTickets() {
+  const ids = Array.from(_selectedTicketIds);
+  if (ids.length === 0) return;
+  if (!confirm(`Supprimer ${ids.length} reçu${ids.length > 1 ? "s" : ""} définitivement ?`)) return;
+  let okCount = 0;
+  for (const id of ids) {
+    try {
+      const res = await apiFetch(`/api/tickets/${id}`, { method: "DELETE" });
+      if (res.ok) okCount++;
+    } catch (_) {}
+  }
+  showToast(okCount === ids.length
+    ? `${okCount} reçu${okCount > 1 ? "s" : ""} supprimé${okCount > 1 ? "s" : ""}`
+    : `${okCount} sur ${ids.length} supprimé${ids.length > 1 ? "s" : ""}`);
+  invalidateDirDataCache?.();
+  _exitTicketSelectMode();
+  loadHistory();
+}
+
+async function _bulkShareSelectedTickets() {
+  const ids = Array.from(_selectedTicketIds);
+  if (ids.length === 0) return;
+  // Native share via Capacitor Share when available, with text-fallback
+  // for the WebView. We share a simple summary (merchant + amount + date)
+  // because the receipt files live behind bearer auth and aren't directly
+  // shareable as URLs without re-uploading. Future improvement: fetch the
+  // bytes and share as files via the Capacitor Share files: API.
+  const lines = ids.map((id) => {
+    const t = _ticketsCache.get(id);
+    if (!t) return null;
+    const name = t.beneficiaire || "Reçu";
+    const amount = t.amountCents != null ? formatAmount(t.amountCents, t.currency || "MAD") : "-";
+    const date = formatDate(t.paymentDate || t.createdAt);
+    return `• ${name} — ${amount}${date ? ` (${date})` : ""}`;
+  }).filter(Boolean);
+  const summary = `${ids.length} reçu${ids.length > 1 ? "s" : ""} Yfiten\n\n${lines.join("\n")}`;
+  try {
+    const SharePlugin = Capacitor?.Plugins?.Share;
+    if (SharePlugin && typeof SharePlugin.share === "function") {
+      await SharePlugin.share({
+        title: "Reçus Yfiten",
+        text: summary,
+        dialogTitle: "Partager les reçus",
+      });
+    } else if (navigator.share) {
+      await navigator.share({ title: "Reçus Yfiten", text: summary });
+    } else {
+      // No share API available — copy the summary to clipboard as a graceful fallback.
+      await navigator.clipboard?.writeText(summary).catch(() => {});
+      showToast("Résumé copié dans le presse-papier");
+    }
+  } catch (e) {
+    if (!/cancel/i.test(String(e?.message || ""))) {
+      showToast("Échec du partage");
+    }
+  }
+}
+
+/* ----- Speed-dial FAB on the receipts page ----- */
+function _toggleTicketsFab() {
+  const root = document.getElementById("tickets-fab-root");
+  if (!root) return;
+  const open = root.classList.toggle("is-open");
+  document.getElementById("btn-tickets-fab")?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function _closeTicketsFab() {
+  const root = document.getElementById("tickets-fab-root");
+  if (!root) return;
+  root.classList.remove("is-open");
+  document.getElementById("btn-tickets-fab")?.setAttribute("aria-expanded", "false");
+}
+
+// Click delegation on the receipts list — covers both modes:
+//   - Normal: tap → open ticket detail (preserves the existing navigation).
+//   - Select: tap → toggle selection; long-press → enter select mode.
+function _bindTicketListInteractions() {
+  const list = document.getElementById("tickets-list");
+  if (!list || list.dataset.bound) return;
+  list.dataset.bound = "1";
+  list.addEventListener("click", (e) => {
+    const row = e.target.closest(".rcp-row");
+    if (!row || !row.dataset.ticketId) return;
+    const id = row.dataset.ticketId;
+    if (_ticketSelectMode) {
+      _toggleTicketSelection(id, row);
+    } else {
+      showTicketDetail(id);
+    }
+  });
+  // Long-press to enter select mode (≥ 450 ms hold). On Android the
+  // contextmenu event fires nicely after a long-press; we also use a
+  // touch timer for older webviews.
+  list.addEventListener("contextmenu", (e) => {
+    const row = e.target.closest(".rcp-row");
+    if (!row || !row.dataset.ticketId) return;
+    e.preventDefault();
+    if (!_ticketSelectMode) _enterTicketSelectMode();
+    _toggleTicketSelection(row.dataset.ticketId, row);
+  });
 }
 
 /* ----- MORE MENU ----- */
@@ -6701,10 +7878,11 @@ async function init() {
     });
   });
 
-  // Org selector
-  document.getElementById("org-select")?.addEventListener("change", async (e) => {
-    await saveOrgId(e.target.value);
-    switchDirTab("dashboard");
+  // Legacy <select> change handler — kept in case any code path still
+  // surfaces the hidden element. Routes through the same flow as the
+  // bottom-sheet switcher so cache invalidation + topbar redraw happen.
+  document.getElementById("org-select")?.addEventListener("change", (e) => {
+    selectOrgAndSwitch(e.target.value);
   });
 
   // Dashboard quick actions - data-action values: scan-ticket, new-invoice, new-quote, bank
@@ -6718,9 +7896,25 @@ async function init() {
     });
   });
 
-  // Bank segment tabs
+  // Bank segment tabs (legacy hidden control — kept for backwards compat
+  // in case any code still toggles them programmatically).
   document.querySelectorAll("#bank-segment-control .segment-btn").forEach(btn => {
     btn.addEventListener("click", () => switchBankSegment(btn.dataset.bankSeg));
+  });
+
+  // Bank page switcher (header title + grid icon both open the sheet).
+  document.getElementById("bank-page-switcher")?.addEventListener("click", openBankPageSheet);
+  document.getElementById("btn-bank-page-menu")?.addEventListener("click", openBankPageSheet);
+  document.getElementById("bank-page-sheet-close")?.addEventListener("click", closeBankPageSheet);
+  // Backdrop click closes; tapping a row swaps the segment + closes.
+  document.getElementById("bank-page-sheet")?.addEventListener("click", (e) => {
+    const sheet = e.currentTarget;
+    if (e.target === sheet) { closeBankPageSheet(); return; }
+    const row = e.target.closest(".bank-page-item");
+    if (row && row.dataset.bankSeg) {
+      switchBankSegment(row.dataset.bankSeg);
+      closeBankPageSheet();
+    }
   });
 
   // Bank statement import buttons
@@ -6781,8 +7975,44 @@ async function init() {
 
   // Ticket scanner
   // Ticket action buttons
-  document.getElementById("btn-take-photo")?.addEventListener("click", () => captureTicketPhoto("camera"));
-  document.getElementById("btn-pick-gallery")?.addEventListener("click", () => captureTicketPhoto("gallery"));
+  // Speed-dial FAB triggers (Scanner camera / Importer gallery).
+  // Dashboard period selector — Ce mois / 7 jours / Année. Active
+  // chip drives _currentDirPeriod which all KPI computations read.
+  document.getElementById("mc-period-control")?.addEventListener("click", (e) => {
+    const chip = e.target.closest(".mc-period-chip");
+    if (!chip || !chip.dataset.period) return;
+    const next = chip.dataset.period;
+    if (next === _currentDirPeriod) return;
+    _currentDirPeriod = next;
+    document.querySelectorAll("#mc-period-control .mc-period-chip").forEach((b) =>
+      b.classList.toggle("active", b.dataset.period === next),
+    );
+    // Period changes the in-period totals; the cached responses are
+    // still valid (we just slice them differently), so no need to
+    // invalidate the data cache.
+    loadDirDashboard();
+  });
+
+  document.getElementById("btn-take-photo")?.addEventListener("click", () => {
+    _closeTicketsFab();
+    captureTicketPhoto("camera");
+  });
+  document.getElementById("btn-pick-gallery")?.addEventListener("click", () => {
+    _closeTicketsFab();
+    captureTicketPhoto("gallery");
+  });
+  document.getElementById("btn-tickets-fab")?.addEventListener("click", _toggleTicketsFab);
+  // Backdrop click (the dimmer behind the open FAB) closes the speed-dial.
+  document.getElementById("tickets-fab-root")?.addEventListener("click", (e) => {
+    if (e.target?.id === "tickets-fab-root") _closeTicketsFab();
+  });
+  // Select-mode header: Annuler exits, Tout toggles select-all.
+  document.getElementById("btn-tickets-cancel")?.addEventListener("click", _exitTicketSelectMode);
+  document.getElementById("btn-tickets-select-all")?.addEventListener("click", _selectAllTickets);
+  // Bulk action buttons.
+  document.getElementById("btn-tickets-multi-share")?.addEventListener("click", _bulkShareSelectedTickets);
+  document.getElementById("btn-tickets-multi-delete")?.addEventListener("click", _bulkDeleteSelectedTickets);
+  _bindTicketListInteractions();
 
   // Scan modal buttons
   document.getElementById("btn-close-scan-modal")?.addEventListener("click", closeScanModal);
