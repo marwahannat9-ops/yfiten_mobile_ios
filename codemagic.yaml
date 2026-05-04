@@ -50,7 +50,6 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.yfiten.phone
       vars:
-        APP_STORE_APP_ID: "" # Numeric Apple ID of the app in App Store Connect (optional, used for direct submission)
         BUNDLE_ID: com.yfiten.phone
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
